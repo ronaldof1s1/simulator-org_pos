@@ -165,7 +165,8 @@ clock = 0 # a variable holding clock counts
 Zero  = 0
 greaterThanZero = 0
 
-for clockcount in range(170):
+mem_len = len(inst_mem)
+while PC in range(mem_len * 4):
     
 
 ################################## FETCH STAGE ######################################
