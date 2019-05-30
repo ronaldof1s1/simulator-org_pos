@@ -335,18 +335,18 @@ for clockcount in range(170):
             print("shamt = " , my_shamt)
             print("ALU SOURCES =", alu_src1, alu_src2)
             
-            sll =((ALUOp[0]==2) and (my_funct[0]== 0b000000)) # check if there is a sll inst
-            if sll: # if sll then alu_src2 = sign ext
+            shift =((ALUOp[0]==2) and ((my_funct[0]== 0b000000) or (my_funct[0] == 0b000001))) # check if there is a sll or slr inst
+            if shift: # if sll or slr then alu_src2 = shamt
                 alu_src1 = alu_src2 
                 alu_src2 = my_shamt[0] 
                 print("SOURCES UPDATED___ALU SOURCES =", alu_src1, alu_src2)
             
-            alu_operation = ALU_control(ALUOp[0], my_funct[0],my_op[0]) # ALUOp is the current instruction
+            alu_operation = ALU_control(ALUOp[0], my_funct[0], my_op[0]) # ALUOp is the current instruction
             alu_entry = ALU[alu_operation](alu_src1,alu_src2)
-            multiplication = ((ALUOp[0]==2) and (my_funct[0]==0b011001)) # check if there is a multu inst
-            alu_result = 0 if multiplication else alu_entry[1]
+            multiplication_to_LO = ((ALUOp[0]==2) and (my_funct[0]==0b011001)) # check if there is a multu inst
+            alu_result = 0 if multiplication_to_LO else alu_entry[1]
             
-            if multiplication:
+            if multiplication_to_LO:
                 LO_REG = alu_entry[1]
             
             #Branch Target
