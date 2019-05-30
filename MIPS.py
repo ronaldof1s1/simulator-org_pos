@@ -58,7 +58,7 @@ my_funct=[0, 0] # EX | DECODE stage
 my_shamt=[0, 0] # EX | DECODE stage
 my_op   =[0,0] # EX | DECODE stage
 Branch  =[0,0] # EX | DECODE stage
-branch_target =0 # EX 
+branch_target = 0 # EX 
 
 inst_assembly = [0, 0, 0, 0, 0]
 
@@ -93,7 +93,7 @@ control = { 0b000000 : [1,0,0,1,0,0,0,2],     #R Format
             0b001000 : [0,1,0,1,0,0,0,3],     #addi
             0b000001 : [0,0,0,0,0,0,1,1],     #bgez
             0b000010 : [1,0,1,1,1,0,0,2],     #lwr
-            0b000011 : [1,0,0,0,0,1,0,2]      #swr
+            0b000011 : [1,0,0,0,0,1,0,2],     #swr
             
             }
             
@@ -166,21 +166,47 @@ mem_len = len(inst_mem)
 # 1: weakly not taken
 # 2: weakly taken
 # 4: strongly taken
-branch_predictor = dict.fromkeys(range(mem_len), -1)
+branch_predictor = {}
 
 def update_branch_predictor(branch_pc, taken):
-    last_taken = branch_predictor[branch_pc]
-    new_taken = last_taken
+    if branch_pc in branch_predictor:
+        last_taken = branch_predictor[branch_pc]
+        new_taken = last_taken
+        
+        if taken and last_taken < 3:
+            new_taken += 1
+        elif not taken and last_taken > 0:
+            new_taken -= 1
+
+        branch_predictor[branch_pc] =  new_taken
+
+    else:
+        branch_predictor[branch_pc] = 2 if taken else 1
+
+def flush_pipe():
+    IF_ID = [0, 0] # Current instruction | Next instruction
+    ID_EX = [[0 , 0 , 0],[0 , 0 , 0]]  #current READ REG1 | READ REG2 | SIGN EXTEND...NEXT
+
+        
+    RegDst[3] = 0
+    MemtoReg[3] = 0
+    RegWrite[3] = 0
+    MemRead[2] = 0 
+    MemWrite[3] = 0
+    ALUOp[1] = 0 
+    ALUSrc[1] = 0 
     
-    if taken and last_taken < 3:
-        new_taken += 1
-    elif not taken and last_taken > 0:
-        new_taken -= 1
 
-    branch_predictor[branch_pc] =  new_taken
+    my_rs[3] = 0
+    my_rt[3] = 0
+    my_rd[3] = 0
+    my_funct[1] = 0
+    my_shamt[1] = 0
+    my_op[1]   = 0
+    Branch[1]  = 0
 
-
-
+    inst_assembly[4] = 0
+    inst_assembly[3] = 0 
 
 #***** Start of Machine *****
 PC = 0
