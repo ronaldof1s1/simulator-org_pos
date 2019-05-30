@@ -1,2 +1,0 @@
-class pipeline:
-    NotImplemented
