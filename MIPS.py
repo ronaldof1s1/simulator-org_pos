@@ -158,6 +158,29 @@ def read_instr():
 
 read_instr()   #Read Instruction Memory
 
+mem_len = len(inst_mem)
+
+
+# BRANCH PREDICTOR
+# 0: strongly not taken
+# 1: weakly not taken
+# 2: weakly taken
+# 4: strongly taken
+branch_predictor = dict.fromkeys(range(mem_len), -1)
+
+def update_branch_predictor(branch_pc, taken):
+    last_taken = branch_predictor[branch_pc]
+    new_taken = last_taken
+    
+    if taken and last_taken < 3:
+        new_taken += 1
+    elif not taken and last_taken > 0:
+        new_taken -= 1
+
+    branch_predictor[branch_pc] =  new_taken
+
+
+
 
 #***** Start of Machine *****
 PC = 0
@@ -165,7 +188,6 @@ clock = 0 # a variable holding clock counts
 Zero  = 0
 greaterThanZero = 0
 
-mem_len = len(inst_mem)
 while PC in range(mem_len * 4):
     
 
@@ -360,12 +382,15 @@ while PC in range(mem_len * 4):
             pc_mux1 = BranchAddress[my_op[0]](Zero, greaterThanZero) if Branch[0] ==1 else PC_plus_4
             if pc_mux1 != PC_plus_4: # i.e branch Taken
                 print("Branch Taken")
+                update_branch_predictor(PC, True)
             else:
                 print("Branch Not Taken")   
-            Jump = 0
-            pc_mux2 = 0 if (Jump) else pc_mux1
+                update_branch_predictor(PC, False)
 
-            PC = pc_mux2  #Next Instruction
+            #Jump = 0
+            #pc_mux2 = 0 if (Jump) else pc_mux1
+
+            PC = pc_mux1  #Next Instruction
 
             #Latch results of that stage into its pipeline reg
             EX_MEM[1] = [alu_result, readData2]
