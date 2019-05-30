@@ -103,22 +103,25 @@ control = { 0b000000 : [1,0,0,1,0,0,0,2],     #R Format
 ALU = { 0b0000 : lambda src1, src2 : ["and", src1 & src2, "bitwise and"],
         0b0001 : lambda src1, src2 : ["or",  src1 | src2, "bitwise or"],
         0b0010 : lambda src1, src2 : ["add", src1 + src2, "add signed"],
-        0b0011 : lambda src1, src2 : ["sll", (src1 * (2**src2)), "shift logical left"],
+        0b0011 : lambda src1, src2 : ["sll", src1 << src2, "shift logical left"],
         0b0110 : lambda src1, src2 : ["sub", src1 - src2, "sub signed"],
         0b0111 : lambda src1, src2 : ["slt", 1 if src1 < src2 else 0, "set on less than"],
         0b1100 : lambda src1, src2 : ["nor", ~(src1 | src2), "bitwise nor"],
-        0b1101 : lambda src1, src2 : ["multu", src1*src2, "multiply"],
-        0b1110 : lambda src1, src2 : ["mflo",LO_REG,"move from LO_REG"]}
+        0b1101 : lambda src1, src2 : ["multu", src1 * src2, "multiply"],
+        0b1110 : lambda src1, src2 : ["mflo",LO_REG,"move from LO_REG"],
+        0b1111 : lambda src1, src2 : ["slr", (src1 >> src2), "shift logical right"],
+        }
 
-decode_funct = { 0b000000 : ["sll", 0b0011],
-                 0b100000 : ["add", 0b0010],
-                 0b100010 : ["sub", 0b0110],
-                 0b100100 : ["and", 0b0000],
-                 0b100101 : ["or",  0b0001],
-                 0b101010 : ["slt", 0b0111],
+decode_funct = { 0b000000 : ["sll",   0b0011],
+                 0b000001 : ["slr",   0b1111],
+                 0b100000 : ["add",   0b0010],
+                 0b100010 : ["sub",   0b0110],
+                 0b100100 : ["and",   0b0000],
+                 0b100101 : ["or",    0b0001],
+                 0b101010 : ["slt",   0b0111],
                  0b011001 : ["multu", 0b1101],
-                 0b010010 : ["mflo", 0b1110],
-                 0bxxxxxx : ["mult", 0b1101]}
+                 0b010010 : ["mflo",  0b1110],
+                 0b011011 : ["mult",  0b1101]}
 
 decode_Ifunct ={ 0b001101 : ["ori", 0b0001],
                  0b001000 : ["addi", 0b0010]}
