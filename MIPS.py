@@ -200,7 +200,7 @@ def flush_pipe():
     MemRead[2] = 0 
     MemWrite[3] = 0
     ALUOp[1] = 0 
-    ALUSrc[1] = 0 
+    ALUSrc[1] = 0
     MultOp[1] = 0
     
 
@@ -405,7 +405,7 @@ while PC in range(mem_len * 4):
             print("Mult SOURCES =", mult_src1, mult_src2)
             
             
-            
+
             shift =((ALUOp[0]==2) and ((my_funct[0]== 0b000000) or (my_funct[0] == 0b000001))) # check if there is a sll or slr inst
             if shift: # if sll or slr then alu_src2 = shamt
                 alu_src1 = alu_src2 
@@ -480,7 +480,7 @@ while PC in range(mem_len * 4):
     my_rt[1] = my_rt[2]
     my_rs[0] = my_rs[1]
     my_rs[1] = my_rs[2]
-    
+       
     EX_MEM[0] = EX_MEM[1]
     MEM_WB[0] = MEM_WB[1]
 
@@ -506,6 +506,7 @@ while PC in range(mem_len * 4):
         my_rd[2] = my_rd[3]
         my_rt[2] = my_rt[3]
         my_rs[2] = my_rs[3]
+        my_ra[0] = my_ra[1]
         
         ALUSrc[0] = ALUSrc[1] # update next instruction to current instruction for next clock cycle
         ALUOp[0]  = ALUOp[1]
@@ -514,6 +515,7 @@ while PC in range(mem_len * 4):
         RegWrite[2] = RegWrite[3]
         RegDst[2] = RegDst[3]
         MemtoReg[2] = MemtoReg[3]
+        MultOp[0] = MultOp[1]
         
         my_funct[0] = my_funct[1]
         my_shamt[0] = my_shamt[1]
