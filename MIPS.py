@@ -265,6 +265,7 @@ while PC in range(mem_len * 4):
         my_rs[3] = (IF_ID[0] >> 21) & 0x1F
         my_rt[3] = (IF_ID[0] >> 16) & 0x1F # store in next3 since it is used in WB
         my_rd[3] = (IF_ID[0] >> 11) & 0x1F
+        my_ra[1] = (IF_ID[0] >> 6) & 0x1F
         my_shamt[1] = (IF_ID[0] >> 6) & 0x1F
         my_funct[1] = IF_ID[0] & 0x3F
         my_imm = IF_ID[0] & 0xFFFF
@@ -279,13 +280,16 @@ while PC in range(mem_len * 4):
         MemWrite[3] = control_word[5] 
         Branch[1] = control_word[6]
         ALUOp[1] = control_word[7] 
+        MultOp[1] = control_word[8]
 
         #register file sources
         read_register1 = my_rs[3]
         read_register2 = my_rt[3]
+        read_register3 = my_ra[1]
   
         read_data1 = regs[read_register1][1] 
         read_data2 = regs[read_register2][1]
+        read_data3 = regs[read_register3][1]
         
      
                                 
@@ -295,12 +299,13 @@ while PC in range(mem_len * 4):
         
         
         #Latch results of that stage into its pipeline reg
-        ID_EX[1] = [read_data1, read_data2, sign_ext]
+        ID_EX[1] = [read_data1, read_data2, sign_ext, read_data3]
         print('/D\ Decoded = ' + str(inst_assembly[3]))
         print("ID/EX -----  for current execute= [%d, %d, %d]" %((ID_EX[0][0]),(ID_EX[0][1]),(ID_EX[0][2]))," result of current decode =[%d, %d, %d]" %((ID_EX[1][0]),(ID_EX[1][1]),(ID_EX[1][2])))
         print("RD = [%d, %d, %d, %d]" %((my_rd[0]) ,(my_rd[1]), (my_rd[2]) ,(my_rd[3])))
         print("RS =  [%d, %d, %d, %d]" %((my_rs[0]) ,(my_rs[1]), (my_rs[2]) ,(my_rs[3])))
         print("RT =  [%d, %d, %d, %d]" %((my_rt[0]) ,(my_rt[1]), (my_rt[2]) ,(my_rt[3])))
+        print("RA =  [%d, %d]" %((my_ra[0]) ,(my_ra[1])))
         
         print("MemRead=      ", MemRead)
         print("MemWrite = ", MemWrite)
