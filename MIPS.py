@@ -89,7 +89,7 @@ def display_mem():
 # Branch -- Branch instruction used to qualify next PC address
 # ALUOp -- ALU operation predecode
 # MultOp -- Mult enable (mult by ra if 1 or by 1 if 0)
-#| RegDst | ALUSrc | MemtoReg | RegWrite | MemRead | MemWrite | Branch | ALUOp | multOP
+#| RegDst | ALUSrc | MemtoReg | RegWrite | MemRead | MemWrite | Branch | ALUOp | MultOP
 control = { 0b000000 : [1,0,0,1,0,0,0,2,0],     #R Format
             0b100011 : [0,1,1,1,1,0,0,0,0],     #lw
             0b101011 : [0,1,0,0,0,1,0,0,0],     #sw
@@ -101,7 +101,8 @@ control = { 0b000000 : [1,0,0,1,0,0,0,2,0],     #R Format
             0b000011 : [1,0,0,0,0,1,0,2,0],     #swr
             0b000101 : [1,0,0,1,0,0,0,2,1],     #mac
             0b000110 : [1,0,1,1,1,0,0,2,1],     #mal
-            0b000111 : [1,0,0,0,0,1,0,2,1],     #mas        
+            0b000111 : [1,0,0,0,0,1,0,2,1],     #mas
+            0b001001 : [0,0,0,0,0,0,1,1,0],     #bne      
             }
             
 
@@ -134,14 +135,16 @@ decode_funct = { 0b000000 : ["sll",   0b0011],
 decode_Ifunct ={ 0b001101 : ["ori", 0b0001],
                  0b001000 : ["addi", 0b0010]}
 
-BranchAddress = { 0b000100 : lambda Zero, greatherThanZero: (branch_target if (Zero) else PC_plus_4), # beq
-                  0b000001 : lambda Zero, greatherThanZero: (branch_target if ((greaterThanZero==1)or(Zero==1)) else PC_plus_4) } # bgez
+BranchAddress = { 0b000100 : lambda Zero, greaterThanZero: (branch_target if (Zero) else PC_plus_4), # beq
+                  0b000001 : lambda Zero, greaterThanZero: (branch_target if ((greaterThanZero==1)or(Zero==1)) else PC_plus_4), #bgez
+                  0b001001 : lambda Zero, greaterThanZero: (PC_plus_4 if (Zero) else branch_target), #bne
+                  } 
 
 def ALU_control(ALUOp, funct,opcode):
     if (ALUOp == 0): #lw, sw => add
         return(0b0010)
     
-    if (ALUOp == 1):  #beq/bgez  => sub
+    if (ALUOp == 1):  #beq/bgez/bne  => sub
         return(0b0110)
     if (ALUOp == 2): # R or M type
         return (decode_funct[funct][1])
