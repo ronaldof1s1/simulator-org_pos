@@ -201,11 +201,13 @@ def flush_pipe():
     MemWrite[3] = 0
     ALUOp[1] = 0 
     ALUSrc[1] = 0 
+    MultOp[1] = 0
     
 
     my_rs[3] = 0
     my_rt[3] = 0
     my_rd[3] = 0
+    my_ra[1] = 0
     my_funct[1] = 0
     my_shamt[1] = 0
     my_op[1]   = 0
