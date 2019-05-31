@@ -35,7 +35,9 @@ regs = [[0,0,"$zero","constant zero"],
         [29,0,"$sp","stack pointer"],
         [30,0,"$fp","frame pointer"],
         [31,0,"$ra","return address"] ]
+
 LO_REG = 0
+HI_REG = 0
 
 IF_ID = [0, 0] # Current instruction | Next instruction
 ID_EX = [[0 , 0 , 0, 0],[0 , 0 , 0, 0]]  #current READ REG1 | READ REG2 | SIGN EXTEND | READ REG3...NEXT
@@ -418,7 +420,8 @@ while PC in range(mem_len * 4):
             alu_result = 0 if multiplication_to_LO else alu_entry[1]
             
             if multiplication_to_LO:
-                LO_REG = alu_entry[1]
+                LO_REG = alu_entry[1] & 0xffffffff
+                HI_REG = (alu_entry[1] >> 32) & 0xffffffff
             
             #Branch Target
             branch_target = PC_plus_4 + (ID_EX[0][2]*4)
