@@ -316,8 +316,13 @@ while PC in range(mem_len * 4):
      
 #################################### EXECUTE STAGE ######################################
     if (clock >= 3):
-        # alu sources when there is no hazard or stall
-        alu_src1 = ID_EX[0][0]     # read_data1                                                             
+        # alu and mult sources when there is no hazard or stall
+        mult_src1 = ID_EX[0][0]
+        mult_src2 = ID_EX[0][3] if MultOp[0] else 0x0001 #if mult then ra else 1
+        mult_result = mult_src1 * mult_src2
+
+        alu_src1 = mult_result
+
         alu_src2 = ID_EX[0][2] if ALUSrc[0] else ID_EX[0][1]  # if ALUsrc_current = 1 then sign Extend is alu_src2 else read_data2
         readData2= ID_EX[0][1]
         ############## H     A     Z     A     R     D DETECTION BETWEEN WB AND EX STAGE ############################
@@ -393,9 +398,13 @@ while PC in range(mem_len * 4):
                 
             print("AluSrc = " ,ALUSrc)
             print("ALUOp = " , ALUOp)
+            print("MultOp = ", MultOp)
             print("funct = " , my_funct)
             print("shamt = " , my_shamt)
             print("ALU SOURCES =", alu_src1, alu_src2)
+            print("Mult SOURCES =", mult_src1, mult_src2)
+            
+            
             
             shift =((ALUOp[0]==2) and ((my_funct[0]== 0b000000) or (my_funct[0] == 0b000001))) # check if there is a sll or slr inst
             if shift: # if sll or slr then alu_src2 = shamt
