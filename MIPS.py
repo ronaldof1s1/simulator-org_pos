@@ -38,7 +38,7 @@ regs = [[0,0,"$zero","constant zero"],
 LO_REG = 0
 
 IF_ID = [0, 0] # Current instruction | Next instruction
-ID_EX = [[0 , 0 , 0],[0 , 0 , 0]]  #current READ REG1 | READ REG2 | SIGN EXTEND...NEXT
+ID_EX = [[0 , 0 , 0, 0],[0 , 0 , 0, 0]]  #current READ REG1 | READ REG2 | SIGN EXTEND | READ REG3...NEXT
 EX_MEM= [[0, 0],[0, 0]] # ALU result | alu_sr2 , CUrrent and next
 MEM_WB =[[0, 0],[0, 0]] # MEMORY_READ_DATA | ALU_result
 
@@ -49,10 +49,12 @@ MemRead =  [0, 0, 0] # MEM | EX | DECODE stage
 MemWrite = [0, 0, 0, 0] # WB| MEM | EX | DECODE stage
 ALUOp = [0, 0]   # EX | DECODE stage
 ALUSrc = [0, 0]  # EX | DECODE stage
+MultOp = [0, 0]  # EX | DECODE stage
 stallDetected = 0
 
 my_rs = [0, 0, 0, 0] #WB | MEM | EX | DECODE stage
 my_rt = [0, 0, 0, 0] #WB | MEM | EX | DECODE stage
+my_ra = [0, 0] # EX | DECODE stage
 my_rd = [0, 0, 0, 0] #WB | MEM | EX | DECODE stage
 my_funct=[0, 0] # EX | DECODE stage
 my_shamt=[0, 0] # EX | DECODE stage
@@ -84,17 +86,20 @@ def display_mem():
 # MemWrite -- Write Enable for Data Memory
 # Branch -- Branch instruction used to qualify next PC address
 # ALUOp -- ALU operation predecode
-#| RegDst | ALUSrc | MemtoReg | RegWrite | MemRead | MemWrite | Branch | ALUOp |
-control = { 0b000000 : [1,0,0,1,0,0,0,2],     #R Format
-            0b100011 : [0,1,1,1,1,0,0,0],     #lw
-            0b101011 : [0,1,0,0,0,1,0,0],     #sw
-            0b000100 : [0,0,0,0,0,0,1,1],     #beq
-            0b001101 : [0,1,0,1,0,0,0,3],     #ori
-            0b001000 : [0,1,0,1,0,0,0,3],     #addi
-            0b000001 : [0,0,0,0,0,0,1,1],     #bgez
-            0b000010 : [1,0,1,1,1,0,0,2],     #lwr
-            0b000011 : [1,0,0,0,0,1,0,2],     #swr
-            
+# MultOp -- Mult enable (mult by ra if 1 or by 1 if 0)
+#| RegDst | ALUSrc | MemtoReg | RegWrite | MemRead | MemWrite | Branch | ALUOp | multOP
+control = { 0b000000 : [1,0,0,1,0,0,0,2,0],     #R Format
+            0b100011 : [0,1,1,1,1,0,0,0,0],     #lw
+            0b101011 : [0,1,0,0,0,1,0,0,0],     #sw
+            0b000100 : [0,0,0,0,0,0,1,1,0],     #beq
+            0b001101 : [0,1,0,1,0,0,0,3,0],     #ori
+            0b001000 : [0,1,0,1,0,0,0,3,0],     #addi
+            0b000001 : [0,0,0,0,0,0,1,1,0],     #bgez
+            0b000010 : [1,0,1,1,1,0,0,2,0],     #lwr
+            0b000011 : [1,0,0,0,0,1,0,2,0],     #swr
+            0b000101 : [1,0,0,1,0,0,0,2,1],     #mac
+            0b000110 : [1,0,1,1,1,0,0,2,1],     #mal
+            0b000111 : [1,0,0,0,0,1,0,2,1],     #mas        
             }
             
 
@@ -107,7 +112,8 @@ ALU = { 0b0000 : lambda src1, src2 : ["and", src1 & src2, "bitwise and"],
         0b0110 : lambda src1, src2 : ["sub", src1 - src2, "sub signed"],
         0b0111 : lambda src1, src2 : ["slt", 1 if src1 < src2 else 0, "set on less than"],
         0b1100 : lambda src1, src2 : ["nor", ~(src1 | src2), "bitwise nor"],
-        0b1101 : lambda src1, src2 : ["multu", src1 * src2, "multiply"],
+        #0b1101 : lambda src1, src2 : ["multu", src1 * src2, "multiply"],
+        0b1101 : lambda src1, src2 : ["multu", src1, "multiply"],
         0b1110 : lambda src1, src2 : ["mflo",LO_REG,"move from LO_REG"],
         0b1111 : lambda src1, src2 : ["slr", (src1 >> src2), "shift logical right"],
         }
@@ -135,7 +141,7 @@ def ALU_control(ALUOp, funct,opcode):
     
     if (ALUOp == 1):  #beq/bgez  => sub
         return(0b0110)
-    if (ALUOp == 2): # Rtype
+    if (ALUOp == 2): # R or M type
         return (decode_funct[funct][1])
     if ALUOp ==3:
         return (decode_Ifunct[opcode][1])
