@@ -169,7 +169,7 @@ def read_instr():
 
 read_instr()   #Read Instruction Memory
 
-mem_len = len(inst_mem)
+inst_mem_len = len(inst_mem)
 
 
 # BRANCH PREDICTOR
@@ -221,13 +221,20 @@ def flush_pipe():
     inst_assembly[4] = 0
     inst_assembly[3] = 0 
 
+#**** Statistics *****#
+clock = 0 # a variable holding clock counts
+mem_accesses = 0 # a variable holding mem access counts
+mem_latency = 4
+multiplier_latency = 3
+multiplications = 0
+
+
 #***** Start of Machine *****
 PC = 0
-clock = 0 # a variable holding clock counts
 Zero  = 0
 greaterThanZero = 0
 
-while PC in range(mem_len * 4):
+while PC in range(inst_mem_len * 4):
     
 
 ################################## FETCH STAGE ######################################
@@ -460,9 +467,11 @@ while PC in range(mem_len * 4):
         # data memory operations
         if MemWrite[1]: # current Control
             data_mem[EX_MEM[0][0]>>2] = EX_MEM[0][1]
+            mem_accesses += 1
 
         if MemRead[0]:
             memory_read_data = data_mem[EX_MEM[0][0]>>2] 
+            mem_accesses += 1
 
         #Latch results of that stage into its pipeline reg
         MEM_WB[1] = [memory_read_data, EX_MEM[0][0]]  # alu result
@@ -545,3 +554,8 @@ while PC in range(mem_len * 4):
 
 # -- End of Main Loop
 
+real_clock_count = clock + mem_accesses * mem_latency
+print("""##########################
+        REAL CLOCK COUNT: """, real_clock_count)
+print("""EXPECTED CPI: """, inst_mem_len/clock)
+print("""REAL CPI: """, inst_mem_len/real_clock_count)
