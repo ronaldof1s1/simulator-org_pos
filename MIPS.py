@@ -405,7 +405,8 @@ while PC in range(inst_mem_len * 4):
                         # turn everything into zero for the next cycle to operate as a NOP                          #
                         stallDetected = 1 # the releaseStall signal is used in the fetch stage                      #
                         EX_MEM[1] = [0, 0]  # result of current execution =0                                        #
-                        PC = PC -4 # ADJUST PC TO RE FETCH LAST INSTRUCTION                                         #
+                        PC = PC -4 # ADJUST PC TO RE FETCH LAST INSTRUCTION
+                        inst_executed -= 1                                         #
                         # print("/E\ Executed = NOP $zero,$zero,$zero")                                               #
                         # print("EX/MEM -----  for current MEM= ",EX_MEM[0], " result of current execute = ", EX_MEM[1]) #                                                                                                  
         #############################################################################################################
