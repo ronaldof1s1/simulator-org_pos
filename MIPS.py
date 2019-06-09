@@ -3,6 +3,8 @@
 ######### NOTE: It deals with memory stalls, and data hazards
 ######### 12/08/2017
 
+from sys import argv
+from parser import parser
 regs = [[0,0,"$zero","constant zero"],
         [1,0,"$at","assembler temporary"],
         [2,0,"$v0","value for function results"],
@@ -35,6 +37,11 @@ regs = [[0,0,"$zero","constant zero"],
         [29,0,"$sp","stack pointer"],
         [30,0,"$fp","frame pointer"],
         [31,0,"$ra","return address"] ]
+
+vec_regs = [[0,[0,0,0,0,0,0,0,0], "xmm"],
+            [1,[0,0,0,0,0,0,0,0], "ymm"],
+            [2,[0,0,0,0,0,0,0,0], "rmm"],
+            ]
 
 LO_REG = 0
 HI_REG = 0
@@ -97,8 +104,8 @@ control = { 0b000000 : [1,0,0,1,0,0,0,2,0],     #R Format
             0b001101 : [0,1,0,1,0,0,0,3,0],     #ori
             0b001000 : [0,1,0,1,0,0,0,3,0],     #addi
             0b000001 : [0,0,0,0,0,0,1,1,0],     #bgez
-            0b000010 : [1,0,1,1,1,0,0,2,0],     #lwr
-            0b000011 : [1,0,0,0,0,1,0,2,0],     #swr
+            0b000010 : [1,0,1,1,1,0,0,2,0],     #rlw
+            0b000011 : [1,0,0,0,0,1,0,2,0],     #rsw
             0b000101 : [1,0,0,1,0,0,0,2,1],     #mac
             0b000110 : [1,0,1,1,1,0,0,2,1],     #mal
             0b000111 : [1,0,0,0,0,1,0,2,1],     #mas
@@ -112,17 +119,17 @@ ALU = { 0b0000 : lambda src1, src2 : ["and", src1 & src2, "bitwise and"],
         0b0001 : lambda src1, src2 : ["or",  src1 | src2, "bitwise or"],
         0b0010 : lambda src1, src2 : ["add", src1 + src2, "add signed"],
         0b0011 : lambda src1, src2 : ["sll", src1 << src2, "shift logical left"],
+        0b0100 : lambda src1, src2 : ["slr", (src1 >> src2), "shift logical right"],
         0b0110 : lambda src1, src2 : ["sub", src1 - src2, "sub signed"],
         0b0111 : lambda src1, src2 : ["slt", 1 if src1 < src2 else 0, "set on less than"],
         0b1100 : lambda src1, src2 : ["nor", ~(src1 | src2), "bitwise nor"],
-        #0b1101 : lambda src1, src2 : ["multu", src1 * src2, "multiply"],
-        0b1101 : lambda src1, src2 : ["multu", src1, "multiply"],
+        0b1101 : lambda src1, src2 : ["multu", src1 * src2, "multiply"],
+        # 0b1101 : lambda src1, src2 : ["multu", src1, "multiply"],
         0b1110 : lambda src1, src2 : ["mflo",LO_REG,"move from LO_REG"],
-        0b1111 : lambda src1, src2 : ["slr", (src1 >> src2), "shift logical right"],
         }
 
 decode_funct = { 0b000000 : ["sll",   0b0011],
-                 0b000001 : ["slr",   0b1111],
+                 0b000001 : ["slr",   0b0100],
                  0b100000 : ["add",   0b0010],
                  0b100010 : ["sub",   0b0110],
                  0b100100 : ["and",   0b0000],
@@ -130,7 +137,7 @@ decode_funct = { 0b000000 : ["sll",   0b0011],
                  0b101010 : ["slt",   0b0111],
                  0b011001 : ["multu", 0b1101],
                  0b010010 : ["mflo",  0b1110],
-                 0b011011 : ["mult",  0b1101]}
+                 0b011011 : ["nor",   0b1100]}
 
 decode_Ifunct ={ 0b001101 : ["ori", 0b0001],
                  0b001000 : ["addi", 0b0010]}
@@ -154,20 +161,20 @@ def ALU_control(ALUOp, funct,opcode):
 # Initialize Memory
 
 inst_mem = []
-data_mem = [1,2,3,4,5,6,0,0] # matA= [1,2],[3,4] matX=[4,5], matB=[0,0]
+data_mem = [1 for i in range(2**16)] # matA= [1,2],[3,4] matX=[4,5], matB=[0,0]
 
-def read_instr():
-    infile = open("instructions.txt","r")
-    lines = infile.readlines()
+def read_instr(path):
+    p = parser(path)
+    program = p.parse()
+    lines = program.splitlines()
     codelines = [x for x in lines if x[0] != "#"]
     for line in codelines:
         words = line.split()
-        mem = (int(words[0],16),int(words[1],16),words[2])
+        mem = (int(words[0],2),int(words[1],2),words[2])
         inst_mem.append(mem)
-    infile.close()
     return
 
-read_instr()   #Read Instruction Memory
+read_instr(argv[1])   #Read Instruction Memory
 
 inst_mem_len = len(inst_mem)
 
@@ -223,8 +230,9 @@ def flush_pipe():
 
 #**** Statistics *****#
 clock = 0 # a variable holding clock counts
+inst_executed = 0
 mem_accesses = 0 # a variable holding mem access counts
-mem_latency = 4
+mem_latency = 2
 multiplier_latency = 3
 multiplications = 0
 
@@ -242,11 +250,14 @@ while PC in range(inst_mem_len * 4):
     addr = inst_mem[PC>>2][0]
     inst_assembly[4] = inst_mem[PC>>2][2]
     instruction = inst_mem[PC>>2][1]
+    inst_executed += 1
    
     #latch result of this stage into its pipeline reg
     IF_ID[1] = instruction
     
     clock = clock +1
+    # print(clock)
+    # print(inst_assembly)
     #increment PC if there is no STALL
     if stallDetected == 0:
         PC_plus_4 = PC + 4
@@ -255,9 +266,9 @@ while PC in range(inst_mem_len * 4):
     else:
         releaseStall = 1
         
-    print('----------------------------------------------------')
-    print('/F\ Fetched = ' + str(inst_assembly[4])+    '  ------Clock cycle = '+ str(clock))
-    print('IF/ID ----- To decode = '+ "%#010x"%(IF_ID[0])+'  fetched = '+ "%#010x" %(IF_ID[1]))
+    # print('----------------------------------------------------')
+    # print('/F\ Fetched = ' + str(inst_assembly[4])+    '  ------Clock cycle = '+ str(clock))
+    # print('IF/ID ----- To decode = '+ "%#010x"%(IF_ID[0])+'  fetched = '+ "%#010x" %(IF_ID[1]))
    
         
 ################################### DECODE STAGE ######################################
@@ -312,18 +323,18 @@ while PC in range(inst_mem_len * 4):
         
         #Latch results of that stage into its pipeline reg
         ID_EX[1] = [read_data1, read_data2, sign_ext, read_data3]
-        print('/D\ Decoded = ' + str(inst_assembly[3]))
-        print("ID/EX -----  for current execute= [%d, %d, %d]" %((ID_EX[0][0]),(ID_EX[0][1]),(ID_EX[0][2]))," result of current decode =[%d, %d, %d]" %((ID_EX[1][0]),(ID_EX[1][1]),(ID_EX[1][2])))
-        print("RD = [%d, %d, %d, %d]" %((my_rd[0]) ,(my_rd[1]), (my_rd[2]) ,(my_rd[3])))
-        print("RS =  [%d, %d, %d, %d]" %((my_rs[0]) ,(my_rs[1]), (my_rs[2]) ,(my_rs[3])))
-        print("RT =  [%d, %d, %d, %d]" %((my_rt[0]) ,(my_rt[1]), (my_rt[2]) ,(my_rt[3])))
-        print("RA =  [%d, %d]" %((my_ra[0]) ,(my_ra[1])))
+        # print('/D\ Decoded = ' + str(inst_assembly[3]))
+        # print("ID/EX -----  for current execute= [%d, %d, %d]" %((ID_EX[0][0]),(ID_EX[0][1]),(ID_EX[0][2]))," result of current decode =[%d, %d, %d]" %((ID_EX[1][0]),(ID_EX[1][1]),(ID_EX[1][2])))
+        # print("RD = [%d, %d, %d, %d]" %((my_rd[0]) ,(my_rd[1]), (my_rd[2]) ,(my_rd[3])))
+        # print("RS =  [%d, %d, %d, %d]" %((my_rs[0]) ,(my_rs[1]), (my_rs[2]) ,(my_rs[3])))
+        # print("RT =  [%d, %d, %d, %d]" %((my_rt[0]) ,(my_rt[1]), (my_rt[2]) ,(my_rt[3])))
+        # print("RA =  [%d, %d]" %((my_ra[0]) ,(my_ra[1])))
         
-        print("MemRead=      ", MemRead)
-        print("MemWrite = ", MemWrite)
-        print("MemToReg = " , MemtoReg)
-        print("RegWrite = ", RegWrite)
-        print("regDst =   ", RegDst)
+        # print("MemRead=      ", MemRead)
+        # print("MemWrite = ", MemWrite)
+        # print("MemToReg = " , MemtoReg)
+        # print("RegWrite = ", RegWrite)
+        # print("regDst =   ", RegDst)
 
      
 #################################### EXECUTE STAGE ######################################
@@ -350,11 +361,11 @@ while PC in range(inst_mem_len * 4):
                     WB_hazard_RD_check = my_rd[0] if RegDst[0] else my_rt[0]                                        #
                     if (WB_hazard_RD_check == my_rs[2]): # with RS
                         if((ALUOp[0] == 3)): # if I instruction
-                            print("--------------------------RS forwaded from WB stage. RS = %d" %(MEM_WB[0][1]))          #
+                            # print("--------------------------RS forwaded from WB stage. RS = %d" %(MEM_WB[0][1]))          #
                             alu_src1_rs = MEM_WB[0][1]  # load into alu_src1 the value of ALU result                        #
                             hazardDetected_rs = 1
                         else:
-                            print("--------------------------RS forwaded from WB stage. RS = %d" %(MEM_WB[0][0]))       #
+                            # print("--------------------------RS forwaded from WB stage. RS = %d" %(MEM_WB[0][0]))       #
                             alu_src1_rs = MEM_WB[0][0]  # load into alu_src1 the value of the loaded data from memory   #
                             hazardDetected_rs = 1
                             
@@ -362,18 +373,18 @@ while PC in range(inst_mem_len * 4):
                         if((ALUOp[0] == 3)): # if I instruction
                             alu_src2 = alu_src2
                         else:
-                            print("--------------------------RT forwaded from WB stage. RT = %d" %(MEM_WB[0][0]))       #
+                            # print("--------------------------RT forwaded from WB stage. RT = %d" %(MEM_WB[0][0]))       #
                             alu_src2_rt = MEM_WB[0][0]                                                                  #
                             hazardDetected_rt = 1
                             
                     MEM_hazard_RD_check = my_rd[1] if RegDst[1] else my_rt[1]                                           #
                     if (MEM_hazard_RD_check == my_rs[2]): # with RS
-                            print("--------------------------RS forwaded from MEM stage. RS = %d" %(EX_MEM[0][0]))          #
+                            # print("--------------------------RS forwaded from MEM stage. RS = %d" %(EX_MEM[0][0]))          #
                             alu_src1_rs = EX_MEM[0][0]  # load into alu_src1 the value of ALU result                        #
                             hazardDetected_rs = 1
                                               
                     if ( (MEM_hazard_RD_check == my_rt[2]) and (ALUSrc[0] == 0)): # with RT AND source is a reg not signext#
-                            print("--------------------------RT forwaded from MEM stage. RT = %d" %(EX_MEM[0][0]))          #
+                            # print("--------------------------RT forwaded from MEM stage. RT = %d" %(EX_MEM[0][0]))          #
                             alu_src2_rt = EX_MEM[0][0]                                                                      #
                             hazardDetected_rt = 1                                                                           #
                                                                                     #           
@@ -390,13 +401,13 @@ while PC in range(inst_mem_len * 4):
                 alu_src2 = regs[my_rt[2]][1]# in case a WB hazard happened with the stall                           #
                                                                                                                     #                      
             if ((MemRead[0] ==1)and ((MEM_STALL_RD_check == my_rs[2]) or (MEM_STALL_RD_check == my_rt[2]))):        #
-                        print("--------------------------STALL CAUSED FROM EX DUE TO MEM LOAD")                     #
+                        # print("--------------------------STALL CAUSED FROM EX DUE TO MEM LOAD")                     #
                         # turn everything into zero for the next cycle to operate as a NOP                          #
                         stallDetected = 1 # the releaseStall signal is used in the fetch stage                      #
                         EX_MEM[1] = [0, 0]  # result of current execution =0                                        #
                         PC = PC -4 # ADJUST PC TO RE FETCH LAST INSTRUCTION                                         #
-                        print("/E\ Executed = NOP $zero,$zero,$zero")                                               #
-                        print("EX/MEM -----  for current MEM= ",EX_MEM[0], " result of current execute = ", EX_MEM[1]) #                                                                                                  
+                        # print("/E\ Executed = NOP $zero,$zero,$zero")                                               #
+                        # print("EX/MEM -----  for current MEM= ",EX_MEM[0], " result of current execute = ", EX_MEM[1]) #                                                                                                  
         #############################################################################################################
                     
         if (stallDetected == 0):
@@ -408,13 +419,13 @@ while PC in range(inst_mem_len * 4):
             if my_op[0] == 0b000001: # if bgez then alusrc2 = zero
                 alu_src2 = 0
                 
-            print("AluSrc = " ,ALUSrc)
-            print("ALUOp = " , ALUOp)
-            print("MultOp = ", MultOp)
-            print("funct = " , my_funct)
-            print("shamt = " , my_shamt)
-            print("ALU SOURCES =", alu_src1, alu_src2)
-            print("Mult SOURCES =", mult_src1, mult_src2)
+            # print("AluSrc = " ,ALUSrc)
+            # print("ALUOp = " , ALUOp)
+            # print("MultOp = ", MultOp)
+            # print("funct = " , my_funct)
+            # print("shamt = " , my_shamt)
+            # print("ALU SOURCES =", alu_src1, alu_src2)
+            # print("Mult SOURCES =", mult_src1, mult_src2)
             
             
 
@@ -422,7 +433,7 @@ while PC in range(inst_mem_len * 4):
             if shift: # if sll or slr then alu_src2 = shamt
                 alu_src1 = alu_src2 
                 alu_src2 = my_shamt[0] 
-                print("SOURCES UPDATED___ALU SOURCES =", alu_src1, alu_src2)
+                # print("SOURCES UPDATED___ALU SOURCES =", alu_src1, alu_src2)
             
             alu_operation = ALU_control(ALUOp[0], my_funct[0], my_op[0]) # ALUOp is the current instruction
             alu_entry = ALU[alu_operation](alu_src1,alu_src2)
@@ -434,7 +445,7 @@ while PC in range(inst_mem_len * 4):
                 HI_REG = (alu_entry[1] >> 32) & 0xffffffff
             
             #Branch Target
-            branch_target = PC_plus_4 + (ID_EX[0][2]*4)
+            branch_target = (ID_EX[0][2])
         
             Zero = 1 if (alu_result == 0) else 0
             greaterThanZero = 1 if(alu_result >0) else 0 ;
@@ -442,10 +453,10 @@ while PC in range(inst_mem_len * 4):
             #pc_mux1
             pc_mux1 = BranchAddress[my_op[0]](Zero, greaterThanZero) if Branch[0] ==1 else PC_plus_4
             if pc_mux1 != PC_plus_4: # i.e branch Taken
-                print("Branch Taken")
+                # print("Branch Taken")
                 update_branch_predictor(PC, True)
             else:
-                print("Branch Not Taken")   
+                # print("Branch Not Taken")   
                 update_branch_predictor(PC, False)
 
             #Jump = 0
@@ -455,11 +466,11 @@ while PC in range(inst_mem_len * 4):
 
             #Latch results of that stage into its pipeline reg
             EX_MEM[1] = [alu_result, readData2]
-            print("/E\ Executed = "+ str(inst_assembly[2]))
-            print("EX/MEM -----  for current MEM= ",EX_MEM[0], " result of current execute = ", EX_MEM[1])
-            print("stall Detected= " + str(stallDetected))
-            print("Zero = " + str(Zero) +  " greaterThanZero = " + str(greaterThanZero)+ "  Next_PC = " + str(PC) +"  Branch = "+str(Branch[0]))
-            print("PC_MUX1= " +str(pc_mux1)+ " PC+4 = "+str(PC_plus_4)+ "  Branch_Target=", branch_target)
+            # print("/E\ Executed = "+ str(inst_assembly[2]))
+            # print("EX/MEM -----  for current MEM= ",EX_MEM[0], " result of current execute = ", EX_MEM[1])
+            # print("stall Detected= " + str(stallDetected))
+            # print("Zero = " + str(Zero) +  " greaterThanZero = " + str(greaterThanZero)+ "  Next_PC = " + str(PC) +"  Branch = "+str(Branch[0]))
+            # print("PC_MUX1= " +str(pc_mux1)+ " PC+4 = "+str(PC_plus_4)+ "  Branch_Target=", branch_target)
             
 ################################## MEM STAGE ######################################
     if (clock >= 4):
@@ -475,18 +486,19 @@ while PC in range(inst_mem_len * 4):
 
         #Latch results of that stage into its pipeline reg
         MEM_WB[1] = [memory_read_data, EX_MEM[0][0]]  # alu result
-        print("/M\ Memory = " + str(inst_assembly[1]))
-        print("MEM/WB -----  for current WB= ",MEM_WB[0], " result of current MEM load = ", MEM_WB[1])
+        # print("/M\ Memory = " + str(inst_assembly[1]))
+        # print("MEM/WB -----  for current WB= ",MEM_WB[0], " result of current MEM load = ", MEM_WB[1])
      
         
 ################################## Write Back STAGE ######################################
 
-    if (clock >= 5):
-        print("/W\ WriteBack = "+str(inst_assembly[0]))
-        display_regs()
-        display_mem()
+    # if (clock >= 5):
+        # print("/W\ WriteBack = "+str(inst_assembly[0]))
+        # display_regs()
+        # display_mem()
+        
 ################################ UPDATE PIPELINE REGISTERS ##############################
-    #update pipeline registers
+    #update pipseline registers
     
           
     my_rd[0] = my_rd[1]
@@ -556,6 +568,7 @@ while PC in range(inst_mem_len * 4):
 
 real_clock_count = clock + mem_accesses * mem_latency
 print("""##########################
-        REAL CLOCK COUNT: """, real_clock_count)
-print("""EXPECTED CPI: """, inst_mem_len/clock)
-print("""REAL CPI: """, inst_mem_len/real_clock_count)
+REAL CLOCK COUNT: """, real_clock_count)
+print('TOTAL INSTRUCTIONS: ', inst_executed)
+print("""EXPECTED CPI: """, clock/inst_executed)
+print("""REAL CPI: """, real_clock_count/inst_executed)
