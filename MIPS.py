@@ -327,15 +327,15 @@ while PC in range(inst_mem_len * 4):
         read_register2 = my_rt[3]
         read_register3 = my_ra[1]
   
-        read_data1 = regs[read_register1][1] 
-        read_data2 = regs[read_register2][1]
-        read_data3 = regs[read_register3][1]
-
         if VectorizeSource[1]:
             read_data1 = vec_regs[read_register1][1]
             read_data2 = vec_regs[read_register2][1]
             read_data3 = vec_regs[read_register3][1]
-        
+        else:            
+            read_data1 = regs[read_register1][1] 
+            read_data2 = regs[read_register2][1]
+            read_data3 = regs[read_register3][1]
+      
      
                                 
         #sign extension of immediate data
@@ -516,17 +516,24 @@ while PC in range(inst_mem_len * 4):
     if (clock >= 4):
         memory_read_data = 0
         if MemWrite[1]: # current Control
+            # print(inst_assembly)
             mem_accesses += 1
             if VectorizeDest[1]:
-                memory_read_data = []
-            
-                data_to_w = EX_MEM[0][1]
+                data_to_w = vec_regs[my_rd[1]][1]
+                # print(data_to_w)
                 i = 0
                 for data in data_to_w:
                     index = EX_MEM[0][0]>>2 + i
                     data_mem[index] = data
             else:
-                data_mem[EX_MEM[0][0]>>2] = EX_MEM[0][1]
+                data_to_w = 0
+                # print(my_op)
+                if RegDst[1]: #if rsw
+                    data_to_w = regs[my_rd[1]][1]
+                else:
+                    data_to_w = EX_MEM[0][1] 
+                # print(data_to_w)
+                data_mem[EX_MEM[0][0]>>2] = data_to_w
 
 
         if MemRead[0]:
