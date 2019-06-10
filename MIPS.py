@@ -58,7 +58,8 @@ MemRead =  [0, 0, 0] # MEM | EX | DECODE stage
 MemWrite = [0, 0, 0, 0] # WB| MEM | EX | DECODE stage
 ALUOp = [0, 0]   # EX | DECODE stage
 ALUSrc = [0, 0]  # EX | DECODE stage
-MultOp = [0, 0]  # EX | DECODE stage
+VectorizeSource = [0, 0]  # EX | DECODE stage
+VectorizeDest = [0, 0]  # WB | MEM stage
 stallDetected = 0
 
 my_rs = [0, 0, 0, 0] #WB | MEM | EX | DECODE stage
@@ -95,21 +96,23 @@ def display_mem():
 # MemWrite -- Write Enable for Data Memory
 # Branch -- Branch instruction used to qualify next PC address
 # ALUOp -- ALU operation predecode
-# MultOp -- Mult enable (mult by ra if 1 or by 1 if 0)
-#| RegDst | ALUSrc | MemtoReg | RegWrite | MemRead | MemWrite | Branch | ALUOp | MultOP
-control = { 0b000000 : [1,0,0,1,0,0,0,2,0],     #R Format
-            0b100011 : [0,1,1,1,1,0,0,0,0],     #lw
-            0b101011 : [0,1,0,0,0,1,0,0,0],     #sw
-            0b000100 : [0,0,0,0,0,0,1,1,0],     #beq
-            0b001101 : [0,1,0,1,0,0,0,3,0],     #ori
-            0b001000 : [0,1,0,1,0,0,0,3,0],     #addi
-            0b000001 : [0,0,0,0,0,0,1,1,0],     #bgez
-            0b000010 : [1,0,1,1,1,0,0,2,0],     #rlw
-            0b000011 : [1,0,0,0,0,1,0,2,0],     #rsw
-            0b000101 : [1,0,0,1,0,0,0,2,1],     #mac
-            0b000110 : [1,0,1,1,1,0,0,2,1],     #mal
-            0b000111 : [1,0,0,0,0,1,0,2,1],     #mas
-            0b001001 : [0,0,0,0,0,0,1,1,0],     #bne      
+# VectorizeSource -- using vector instructions
+#| RegDst | ALUSrc | MemtoReg | RegWrite | MemRead | MemWrite | Branch | ALUOp | VectorizeSource | VectorizeDest
+control = { 0b000000 : [1,0,0,1,0,0,0,2,0,0],     #R Format
+            0b100011 : [0,1,1,1,1,0,0,0,0,0],     #lw
+            0b101011 : [0,1,0,0,0,1,0,0,0,0],     #sw
+            0b000100 : [0,0,0,0,0,0,1,1,0,0],     #beq
+            0b001101 : [0,1,0,1,0,0,0,3,0,0],     #ori
+            0b001000 : [0,1,0,1,0,0,0,3,0,0],     #addi
+            0b000001 : [0,0,0,0,0,0,1,1,0,0],     #bgez
+            0b000010 : [1,0,1,1,1,0,0,2,0,0],     #rlw
+            0b000011 : [1,0,0,0,0,1,0,2,0,0],     #rsw
+            # 0b000101 : [1,0,0,1,0,0,0,2,1],     #mac
+            # 0b000110 : [1,0,1,1,1,0,0,2,1],     #mal
+            # 0b000111 : [1,0,0,0,0,1,0,2,1],     #mas
+            0b001001 : [0,0,0,0,0,0,1,1,0,0],     #bne
+            0b000101 : [1,0,1,1,1,0,0,2,0,1],     #vrlw
+            0b000110 : [1,0,0,0,0,1,0,2,0,1],     #vrsw
             }
             
 
@@ -213,7 +216,8 @@ def flush_pipe():
     MemWrite[3] = 0
     ALUOp[1] = 0 
     ALUSrc[1] = 0
-    MultOp[1] = 0
+    VectorizeSource[1] = 0
+    VectorizeDest[2] = 0
     
 
     my_rs[3] = 0
@@ -276,11 +280,18 @@ while PC in range(inst_mem_len * 4):
         ################### WRITE FIRST THEN READ#########################
         if (clock >= 5):
             #register write back
+
+
             register_write_data = MEM_WB[0][0] if MemtoReg[0] else MEM_WB[0][1]
             write_register = my_rd[0] if RegDst[0] else my_rt[0]
 
-            if (RegWrite[0] and (write_register!= 0)): # do not write to reg zero. FOR MULTU
-                regs[write_register][1] = register_write_data
+            if VectorizeDest[0]:
+                if(RegWrite[0]):
+                    vec_regs[write_register][1] = register_write_data
+            else:
+
+                if (RegWrite[0] and (write_register!= 0)): # do not write to reg zero. FOR MULTU
+                    regs[write_register][1] = register_write_data
             
             
         #decode instruction
@@ -303,7 +314,7 @@ while PC in range(inst_mem_len * 4):
         MemWrite[3] = control_word[5] 
         Branch[1] = control_word[6]
         ALUOp[1] = control_word[7] 
-        MultOp[1] = control_word[8]
+        VectorizeSource[1] = control_word[8]
 
         #register file sources
         read_register1 = my_rs[3]
@@ -313,6 +324,11 @@ while PC in range(inst_mem_len * 4):
         read_data1 = regs[read_register1][1] 
         read_data2 = regs[read_register2][1]
         read_data3 = regs[read_register3][1]
+
+        if VectorizeSource[1]:
+            read_data1 = vec_regs[read_register1][1]
+            read_data2 = vec_regs[read_register2][1]
+            read_data3 = vec_regs[read_register3][1]
         
      
                                 
@@ -340,11 +356,13 @@ while PC in range(inst_mem_len * 4):
 #################################### EXECUTE STAGE ######################################
     if (clock >= 3):
         # alu and mult sources when there is no hazard or stall
-        mult_src1 = ID_EX[0][0]
-        mult_src2 = ID_EX[0][3] if MultOp[0] else 0x0001 #if mult then ra else 1
-        mult_result = mult_src1 * mult_src2
+        # mult_src1 = ID_EX[0][0]
+        # mult_src2 = ID_EX[0][3] if VectorizeSource[0] else 0x0001 #if mult then ra else 1
+        # mult_result = mult_src1 * mult_src2
 
-        alu_src1 = mult_result
+        # alu_src1 = mult_result
+
+        alu_src1 = ID_EX[0][0]
 
         alu_src2 = ID_EX[0][2] if ALUSrc[0] else ID_EX[0][1]  # if ALUsrc_current = 1 then sign Extend is alu_src2 else read_data2
         readData2= ID_EX[0][1]
@@ -422,7 +440,7 @@ while PC in range(inst_mem_len * 4):
                 
             # print("AluSrc = " ,ALUSrc)
             # print("ALUOp = " , ALUOp)
-            # print("MultOp = ", MultOp)
+            # print("VectorizeSource = ", VectorizeSource)
             # print("funct = " , my_funct)
             # print("shamt = " , my_shamt)
             # print("ALU SOURCES =", alu_src1, alu_src2)
@@ -435,15 +453,27 @@ while PC in range(inst_mem_len * 4):
                 alu_src1 = alu_src2 
                 alu_src2 = my_shamt[0] 
                 # print("SOURCES UPDATED___ALU SOURCES =", alu_src1, alu_src2)
-            
+
             alu_operation = ALU_control(ALUOp[0], my_funct[0], my_op[0]) # ALUOp is the current instruction
-            alu_entry = ALU[alu_operation](alu_src1,alu_src2)
-            multiplication_to_LO = ((ALUOp[0]==2) and (my_funct[0]==0b011001)) # check if there is a multu inst
-            alu_result = 0 if multiplication_to_LO else alu_entry[1]
-            
-            if multiplication_to_LO:
-                LO_REG = alu_entry[1] & 0xffffffff
-                HI_REG = (alu_entry[1] >> 32) & 0xffffffff
+
+            alu_result = None
+
+            if VectorizeSource[0]:
+                alu_entries = []
+                for i in range(len(alu_src1)):
+                    result = ALU[alu_operation](alu_src1[i], alu_src2[i])
+                    alu_entries.append(result[1])
+                
+                alu_result = alu_entries
+
+            else:
+                alu_entry = ALU[alu_operation](alu_src1,alu_src2)
+                multiplication_to_LO = ((ALUOp[0]==2) and (my_funct[0]==0b011001)) # check if there is a multu inst
+                alu_result = 0 if multiplication_to_LO else alu_entry[1]
+                
+                if multiplication_to_LO:
+                    LO_REG = alu_entry[1] & 0xffffffff
+                    HI_REG = (alu_entry[1] >> 32) & 0xffffffff
             
             #Branch Target
             branch_target = (ID_EX[0][2])
@@ -475,15 +505,35 @@ while PC in range(inst_mem_len * 4):
             
 ################################## MEM STAGE ######################################
     if (clock >= 4):
-        memory_read_data = 0
-        # data memory operations
-        if MemWrite[1]: # current Control
-            data_mem[EX_MEM[0][0]>>2] = EX_MEM[0][1]
-            mem_accesses += 1
+        memory_read_data = ''
+        if VectorizeDest[1]:
+            memory_read_data = []
+            if MemWrite[1]: # current Control
+                mem_accesses += 1
 
-        if MemRead[0]:
-            memory_read_data = data_mem[EX_MEM[0][0]>>2] 
-            mem_accesses += 1
+                data_to_w = EX_MEM[0][1]
+                i = 0
+                for data in data_to_w:
+                    index = EX_MEM[0][0]>>2 + i
+                    data_mem[index] = data
+
+            if MemRead[0]:
+                mem_accesses += 1
+                
+                for pos in range(8):
+                    
+                memory_read_data.append(data_mem[EX_MEM[0][0]>>2 + pos]) 
+
+        else:
+        
+            # data memory operations
+            if MemWrite[1]: # current Control
+                data_mem[EX_MEM[0][0]>>2] = EX_MEM[0][1]
+                mem_accesses += 1
+
+            if MemRead[0]:
+                memory_read_data = data_mem[EX_MEM[0][0]>>2] 
+                mem_accesses += 1
 
         #Latch results of that stage into its pipeline reg
         MEM_WB[1] = [memory_read_data, EX_MEM[0][0]]  # alu result
@@ -523,6 +573,7 @@ while PC in range(inst_mem_len * 4):
     RegWrite[1] = RegWrite[2]
     RegDst[0] = RegDst[1]
     RegDst[1] = RegDst[2]
+    VectorizeDest[0] = VectorizeDest[1]
 
     inst_assembly[0] = inst_assembly[1]
     inst_assembly[1] = inst_assembly[2]
@@ -543,7 +594,7 @@ while PC in range(inst_mem_len * 4):
         RegWrite[2] = RegWrite[3]
         RegDst[2] = RegDst[3]
         MemtoReg[2] = MemtoReg[3]
-        MultOp[0] = MultOp[1]
+        VectorizeSource[0] = VectorizeSource[1]
         
         my_funct[0] = my_funct[1]
         my_shamt[0] = my_shamt[1]
