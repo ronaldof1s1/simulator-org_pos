@@ -3,12 +3,16 @@ from sys import argv
 Rtype = ['and', 'or', 'add', 'sll', 'slr', 'nor', 'sub', 
         'mult', 'mul', 'slt', 'mflo', 'rlw', 'rsw']
 
-Vectorized = ['vrlw', 'vrsw']
+Vectorized_mem_acc = ['vrlw', 'vrsw']
+
+VRtype =['vadd', 'vmul']
 
 Itype = ['sw', 'lw', 'beq', 'addi', 'bne']
 
 funct_to_numb = {'and' : 0b100100, 'or' : 0b100101, 'add' : 0b100000, 'sll': 0b000000, 'slr': 0b000001, 'sub' : 0b100010,
          'slt' : 0b101010, 'nor' : 0b011011, 'mult' : 0b011001, 'mflo' : 0b010010}
+
+vec_reg_to_num = {'xmm': 0, 'ymm': 1, 'rmm': 2}
 
 class parser:
 
@@ -43,11 +47,13 @@ class parser:
             opcode = 0b000101
         elif op == 'vrsw':
             opcode = 0b000110
+        elif op in VRtype:
+            opcode = 0b000111
         else:
             raise Exception
 
         opcode = '{:06b}'.format(opcode)
-        if op not in Vectorized:
+        if op not in Vectorized_mem_acc:
             rd = ''.join(s for s in words[1] if s.isdigit())
             rd = "{:05b}".format(int(rd))
         else:
@@ -106,13 +112,9 @@ class parser:
 
             instruction = opcode + rs + rd + imm
 
-        if op in Vectorized:
-            if words[1] == 'xmm':
-                rd = '{:05b}'.format(0)
-            elif words[1] == 'ymm':
-                rd = '{:05b}'.format(1)
-            elif words[1] == 'rmm':
-                rd = '{:05b}'.format(2)
+        if op in Vectorized_mem_acc:
+            rd = vec_reg_to_num[words[1]]
+            rd = '{:05b}'.format(rd)
             
             rs = ''.join(s for s in words[2] if s.isdigit())
             rs = "{:05b}".format(int(rs))
@@ -145,6 +147,24 @@ class parser:
                 rs = shamt
                 rt = shamt  
         
+            instruction = opcode + rs + rt + rd + shamt + funct
+
+        if op in VRtype:
+            rd = vec_reg_to_num[words[1]]
+            rd = '{:05b}'.format(rd)
+            
+            rs = vec_reg_to_num[words[2]]
+            rs = "{:05b}".format(int(rs))
+
+            rt = vec_reg_to_num[words[3]]
+            rt = "{:05b}".format(int(rt))
+
+            shamt = 0
+            shamt = "{:05b}".format(shamt)
+            funct = "{:05b}".format(int(rt))
+
+            funct = funct_to_numb[op[1:]]
+
             instruction = opcode + rs + rt + rd + shamt + funct
 
 
