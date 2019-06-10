@@ -5,6 +5,7 @@
 
 from sys import argv
 from parser import parser
+import memory_init
 regs = [[0,0,"$zero","constant zero"],
         [1,0,"$at","assembler temporary"],
         [2,0,"$v0","value for function results"],
@@ -115,6 +116,7 @@ control = { 0b000000 : [1,0,0,1,0,0,0,2,0,0],     #R Format
             0b001001 : [0,0,0,0,0,0,1,1,0,0],     #bne
             0b000101 : [1,0,1,1,1,0,0,2,0,1],     #vrlw
             0b000110 : [1,0,0,0,0,1,0,2,0,1],     #vrsw
+            0b000111 : [1,0,0,1,0,0,0,2,1,1],     #VR Format
             }
             
 
@@ -166,8 +168,11 @@ def ALU_control(ALUOp, funct,opcode):
 # Initialize Memory
 
 inst_mem = []
-data_mem = [i for i in range(2**16)] # matA= [1,2],[3,4] matX=[4,5], matB=[0,0]
 
+data_mem = memory_init.mxm() # matA= [1,2],[3,4] matX=[4,5], matB=[0,0]
+# print(data_mem)
+
+# file = open("../outputs/out.out", 'w+')
 def read_instr(path):
     p = parser(path)
     program = p.parse()
@@ -367,7 +372,7 @@ while PC in range(inst_mem_len * 4):
         # mult_result = mult_src1 * mult_src2
 
         # alu_src1 = mult_result
-
+        
         alu_src1 = ID_EX[0][0]
 
         alu_src2 = ID_EX[0][2] if ALUSrc[0] else ID_EX[0][1]  # if ALUsrc_current = 1 then sign Extend is alu_src2 else read_data2
@@ -486,7 +491,7 @@ while PC in range(inst_mem_len * 4):
             
             #Branch Target
             branch_target = (ID_EX[0][2])
-        
+            # print(inst_assembly[2], alu_result)
             Zero = 1 if (alu_result == 0) else 0
             greaterThanZero = 1 if(alu_result >0) else 0 ;
             # ---- Next PC Calculation ----
@@ -643,5 +648,5 @@ print('TOTAL INSTRUCTIONS: ', inst_executed)
 print("""EXPECTED CPI: """, clock/inst_executed)
 print("""REAL CPI: """, real_clock_count/inst_executed)
 print("############################\n\n")
-# display_mem()
+display_mem()
 display_regs()
