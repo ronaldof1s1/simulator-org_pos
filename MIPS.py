@@ -470,7 +470,6 @@ while PC in range(inst_mem_len * 4):
             alu_result = None
 
             if VectorizeSource[0]:
-                # print(alu_src1, alu_src2)
                 
                 alu_entries = []
                 for i in range(len(alu_src1)):
@@ -480,34 +479,37 @@ while PC in range(inst_mem_len * 4):
                 alu_result = alu_entries
 
             else:
-                # print(alu_src1, alu_src2)
+                print(inst_assembly[2])
+                print(alu_src1, alu_src2)
                 alu_entry = ALU[alu_operation](alu_src1,alu_src2)
-                multiplication_to_LO = ((ALUOp[0]==2) and (my_funct[0]==0b011001)) # check if there is a multu inst
-                alu_result = 0 if multiplication_to_LO else alu_entry[1]
-                
-                if multiplication_to_LO:
-                    LO_REG = alu_entry[1] &  0xffffffff
-                    HI_REG = (alu_entry[1] >> 32) & 0xffffffff
+                # multiplication_to_LO = ((ALUOp[0]==2) and (my_funct[0]==0b011001)) # check if there is a multu inst
+                # alu_result = 0 if multiplication_to_LO else alu_entry[1]
+                alu_result = alu_entry[1]
+                # if multiplication_to_LO:
+                #     LO_REG = alu_entry[1] &  0xffffffff
+                #     HI_REG = (alu_entry[1] >> 32) & 0xffffffff
             
             #Branch Target
             branch_target = (ID_EX[0][2])
             # print(inst_assembly[2], alu_result)
-            Zero = 1 if (alu_result == 0) else 0
-            greaterThanZero = 1 if(alu_result >0) else 0 ;
-            # ---- Next PC Calculation ----
-            #pc_mux1
-            pc_mux1 = BranchAddress[my_op[0]](Zero, greaterThanZero) if Branch[0] ==1 else PC_plus_4
-            if pc_mux1 != PC_plus_4: # i.e branch Taken
-                # print("Branch Taken")
-                update_branch_predictor(PC, True)
+            if Branch[0]:
+                Zero = 1 if (alu_result == 0) else 0
+                greaterThanZero = 1 if(alu_result >0) else 0 ;
+                # ---- Next PC Calculation ----
+                #pc_mux1
+                pc_mux1 = BranchAddress[my_op[0]](Zero, greaterThanZero) if Branch[0] ==1 else PC_plus_4
+                if pc_mux1 != PC_plus_4: # i.e branch Taken
+                    # print("Branch Taken")
+                    update_branch_predictor(PC, True)
+                else:
+                    # print("Branch Not Taken")   
+                    update_branch_predictor(PC, False)
+
+                #Jump = 0
+                #pc_mux2 = 0 if (Jump) else pc_mux1
+                PC = pc_mux1  #Next Instruction
             else:
-                # print("Branch Not Taken")   
-                update_branch_predictor(PC, False)
-
-            #Jump = 0
-            #pc_mux2 = 0 if (Jump) else pc_mux1
-
-            PC = pc_mux1  #Next Instruction
+                PC = PC_plus_4
 
             #Latch results of that stage into its pipeline reg
             EX_MEM[1] = [alu_result, readData2]
