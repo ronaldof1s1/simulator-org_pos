@@ -3,6 +3,8 @@ from sys import argv
 Rtype = ['and', 'or', 'add', 'sll', 'slr', 'nor', 'sub', 
         'mult', 'mul', 'slt', 'mflo', 'rlw', 'rsw']
 
+Vectorized = ['vrlw', 'vrsw']
+
 Itype = ['sw', 'lw', 'beq', 'addi', 'bne']
 
 funct_to_numb = {'and' : 0b100100, 'or' : 0b100101, 'add' : 0b100000, 'sll': 0b000000, 'slr': 0b000001, 'sub' : 0b100010,
@@ -37,11 +39,20 @@ class parser:
             opcode = 0b000011
         elif op == 'bne':
             opcode = 0b001001
+        elif op == 'vrlw':
+            opcode = 0b000101
+        elif op == 'vrsw':
+            opcode = 0b000110
+        else:
+            raise Exception
 
         opcode = '{:06b}'.format(opcode)
+        if op not in Vectorized:
+            rd = ''.join(s for s in words[1] if s.isdigit())
+            rd = "{:05b}".format(int(rd))
+        else:
+            rd = ''
         
-        rd = ''.join(s for s in words[1] if s.isdigit())
-        rd = "{:05b}".format(int(rd))
         rs = ''
         rt = ''
         ra = ''
@@ -95,6 +106,47 @@ class parser:
 
             instruction = opcode + rs + rd + imm
 
+        if op in Vectorized:
+            if words[1] == 'xmm':
+                rd = '{:05b}'.format(0)
+            elif words[1] == 'ymm':
+                rd = '{:05b}'.format(1)
+            elif words[1] == 'rmm':
+                rd = '{:05b}'.format(2)
+            
+            rs = ''.join(s for s in words[2] if s.isdigit())
+            rs = "{:05b}".format(int(rs))
+
+            if op == 'vsll' or op == 'vsrl':
+                shamt = ''.join(s for s in words[3] if s.isdigit())
+                shamt = "{:05b}".format(int(shamt))
+            else:
+                shamt = "{:05b}".format(0)
+            
+            if op != 'vmult':
+                rt = ''.join(s for s in words[3] if s.isdigit())
+                rt = "{:05b}".format(int(rt))
+            else:
+                rt = shamt
+
+
+            if op[1:] in funct_to_numb:
+                funct = funct_to_numb[op]
+            
+
+            if op == 'vmul':
+                funct = funct_to_numb['mult']
+            if op == 'vrlw' or op == 'vrsw':
+                funct = funct_to_numb['add']
+            
+            funct = "{:06b}".format(int(funct))
+
+            if op == 'mflo':
+                rs = shamt
+                rt = shamt  
+        
+            instruction = opcode + rs + rt + rd + shamt + funct
+
 
         return instruction
 
@@ -137,7 +189,8 @@ class parser:
             if line == '':
                 continue
             
-            words = line.strip().split()
+            line = line.strip().replace(',', '')
+            words = line.split()
 
             if len(words) == 1 and words[0] != 'nop':
                 continue
@@ -147,7 +200,7 @@ class parser:
                 # print(words[3])
 
             line_addr = '{:032b}'.format(i)
-
+            words[0] = words[0].lower()
 
             instruction = self.parse_instruction(words)
 
@@ -159,6 +212,6 @@ class parser:
             
             i+=4
         file.close()
-        print (string)
+        # print (string)
         return string
 
