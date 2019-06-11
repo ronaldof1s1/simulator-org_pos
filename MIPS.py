@@ -6,6 +6,13 @@
 from sys import argv
 from parser import parser
 import memory_init
+
+powers = {'mult' : 2717287.74, 'alu' : 671381.11, 'regbank' : 1465626.89, 'cacheR' : 12000000.00, 'cacheW' : 13000000.0, 'dram' : 2000000.0}
+
+leakage_power = {'mult' : 131465.84, 'alu' : 16992.06, 'regbank' : 44461.77, 'cacheR' : 12000000.00, 'cacheW' : 13000000.0, 'dram' : 2000000.0}
+
+dynamic_power = {'mult' : 2460760.74, 'alu' : 509204.37, 'regbank' : 2385461.93, 'cacheR' : 12000000.00, 'cacheW' : 13000000.0, 'dram' : 2000000.0}
+
 regs = [[0,0,"$zero","constant zero"],
         [1,0,"$at","assembler temporary"],
         [2,0,"$v0","value for function results"],
@@ -116,6 +123,26 @@ control = { 0b000000 : [1,0,0,1,0,0,0,2,0,0],     #R Format
             0b000101 : [1,0,1,1,1,0,0,2,0,1],     #vrlw
             0b000110 : [1,0,0,0,0,1,0,2,0,1],     #vrsw
             0b000111 : [1,0,0,1,0,0,0,2,1,1],     #VR Format
+            0b001010 : [1,0,0,1,0,0,0,2,0,0],     #GET
+            }
+
+dynamic_power_usage = { 0b000000 : dynamic_power['alu'] + dynamic_power['regbank']*3,     #R Format
+            0b100011 : dynamic_power['alu'] + dynamic_power['regbank']*2 + dynamic_power['cacheR'],     #lw
+            0b101011 : dynamic_power['alu'] + dynamic_power['regbank']*2 + dynamic_power['cacheW'],     #sw
+            0b000100 : dynamic_power['alu'] + dynamic_power['regbank']*2,     #beq
+            # 0b001101 : [0,1,0,1,0,0,0,3,0,0],     #ori
+            0b001000 : dynamic_power['alu'] + dynamic_power['regbank']*2,     #addi
+            # 0b000001 : [0,0,0,0,0,0,1,1,0,0],     #bgez
+            0b000010 : dynamic_power['alu'] + dynamic_power['regbank']*3 + dynamic_power['cacheR'],     #rlw
+            0b000011 : dynamic_power['alu'] + dynamic_power['regbank']*3 + dynamic_power['cacheW'],     #rsw
+            # 0b000101 : [1,0,0,1,0,0,0,2,1],     #mac
+            # 0b000110 : [1,0,1,1,1,0,0,2,1],     #mal
+            # 0b000111 : [1,0,0,0,0,1,0,2,1],     #mas
+            0b001001 : dynamic_power['alu'] + dynamic_power['regbank']*2,     #bne
+            0b000101 : dynamic_power['alu'] + dynamic_power['regbank']*10 + dynamic_power['cacheR'],     #vrlw
+            0b000110 : dynamic_power['alu'] + dynamic_power['regbank']*10 + dynamic_power['cacheW'],     #vrsw
+            0b000111 : dynamic_power['alu']*8 + dynamic_power['regbank']*8 + dynamic_power['cacheR'],     #VR Format
+            0b001010 : dynamic_power['regbank']*10,     #GET
             }
             
 
@@ -125,17 +152,18 @@ ALU = { 0b0000 : lambda src1, src2 : ["and", src1 & src2, "bitwise and"],
         0b0001 : lambda src1, src2 : ["or",  src1 | src2, "bitwise or"],
         0b0010 : lambda src1, src2 : ["add", src1 + src2, "add signed"],
         0b0011 : lambda src1, src2 : ["sll", src1 << src2, "shift logical left"],
-        0b0100 : lambda src1, src2 : ["slr", (src1 >> src2), "shift logical right"],
+        0b0100 : lambda src1, src2 : ["srl", (src1 >> src2), "shift logical right"],
         0b0110 : lambda src1, src2 : ["sub", src1 - src2, "sub signed"],
         0b0111 : lambda src1, src2 : ["slt", 1 if src1 < src2 else 0, "set on less than"],
         0b1100 : lambda src1, src2 : ["nor", ~(src1 | src2), "bitwise nor"],
         0b1101 : lambda src1, src2 : ["multu", src1 * src2, "multiply"],
         # 0b1101 : lambda src1, src2 : ["multu", src1, "multiply"],
         0b1110 : lambda src1, src2 : ["mflo",LO_REG,"move from LO_REG"],
+        0b1111 : lambda src1, src2 : ["not",0 if src1 > 0 else 1,"bitwise not"],
         }
 
 decode_funct = { 0b000000 : ["sll",   0b0011],
-                 0b000001 : ["slr",   0b0100],
+                 0b000001 : ["srl",   0b0100],
                  0b100000 : ["add",   0b0010],
                  0b100010 : ["sub",   0b0110],
                  0b100100 : ["and",   0b0000],
@@ -143,7 +171,8 @@ decode_funct = { 0b000000 : ["sll",   0b0011],
                  0b101010 : ["slt",   0b0111],
                  0b011001 : ["multu", 0b1101],
                  0b010010 : ["mflo",  0b1110],
-                 0b011011 : ["nor",   0b1100]}
+                 0b011011 : ["nor",   0b1100],
+                 0b000010 : ['not',   0b1111]}
 
 decode_Ifunct ={ 0b001101 : ["ori", 0b0001],
                  0b001000 : ["addi", 0b0010]}
@@ -168,7 +197,7 @@ def ALU_control(ALUOp, funct,opcode):
 
 inst_mem = []
 
-data_mem = memory_init.dfs() # matA= [1,2],[3,4] matX=[4,5], matB=[0,0]
+data_mem = memory_init.mxm(64)# matA= [1,2],[3,4] matX=[4,5], matB=[0,0]
 # print(data_mem)
 
 # file = open("../outputs/out.out", 'w+')
@@ -245,6 +274,11 @@ mem_accesses = 0 # a variable holding mem access counts
 cache_latency = 2
 multiplier_latency = 3
 multiplications = 0
+power_array = {}
+power_sum = 0
+leak_sum = 0
+for leak in leakage_power.values():
+    leak_sum += leak;
 
 
 #***** Start of Machine *****
@@ -345,8 +379,13 @@ while PC in range(inst_mem_len * 4):
         read_data2 = regs[read_register2][1]
         read_data3 = regs[read_register3][1]
     
-     
-                                
+        #power usage:
+        dynamic_energy = dynamic_power_usage[my_op[1]]
+        inst_power = dynamic_energy + leak_sum
+        power_sum += inst_power
+        if inst_assembly[3] not in power_array:
+            power_array[inst_assembly[3]] = inst_power
+
         #sign extension of immediate data
         sign_bit = (my_imm >> 15) & 0x1
         sign_ext = (my_imm-(0x10000)) if (sign_bit == 1) else my_imm
@@ -468,15 +507,16 @@ while PC in range(inst_mem_len * 4):
             
             
 
-            shift =((ALUOp[0]==2) and ((my_funct[0]== 0b000000) or (my_funct[0] == 0b000001))) # check if there is a sll or slr inst
-            if shift: # if sll or slr then alu_src2 = shamt
-                alu_src1 = alu_src2 
+            shift =((ALUOp[0]==2) and ((my_funct[0]== 0b000000) or (my_funct[0] == 0b000001))) # check if there is a sll or srl inst
+            if shift: # if sll or srl then alu_src2 = shamt
+                # alu_src1 = alu_src2 
                 alu_src2 = my_shamt[0] 
                 # print("SOURCES UPDATED___ALU SOURCES =", alu_src1, alu_src2)
 
             alu_operation = ALU_control(ALUOp[0], my_funct[0], my_op[0]) # ALUOp is the current instruction
 
             alu_result = None
+            # print(alu_src1,alu_src2)
 
             if VectorizeSource[0]:
                 # print(VectorizeSource)
@@ -485,6 +525,7 @@ while PC in range(inst_mem_len * 4):
                 # print(alu_src1, alu_src2)
                 alu_entries = []
                 for i in range(len(alu_src1)):
+                    # print(inst_assembly[2])
                     result = ALU[alu_operation](alu_src1[i], alu_src2[i])
                     alu_entries.append(result[1])
                 
@@ -496,19 +537,25 @@ while PC in range(inst_mem_len * 4):
                 # print(alu_src1, alu_src2)
                 # display_mem()
                 # display_regs()
-                alu_entry = ALU[alu_operation](alu_src1,alu_src2)
-                # multiplication_to_LO = ((ALUOp[0]==2) and (my_funct[0]==0b011001)) # check if there is a multu inst
-                # alu_result = 0 if multiplication_to_LO else alu_entry[1]
-                alu_result = alu_entry[1]
-                # if multiplication_to_LO:
-                #     LO_REG = alu_entry[1] &  0xffffffff
-                #     HI_REG = (alu_entry[1] >> 32) & 0xffffffff
+                if my_op[0] == 0b001010:
+                    alu_result = alu_src1[alu_src2]
+                else:
+                    alu_entry = ALU[alu_operation](alu_src1,alu_src2)
+                    # multiplication_to_LO = ((ALUOp[0]==2) and (my_funct[0]==0b011001)) # check if there is a multu inst
+                    # alu_result = 0 if multiplication_to_LO else alu_entry[1]
+                    alu_result = alu_entry[1]
+                    # if multiplication_to_LO:
+                    #     LO_REG = alu_entry[1] &  0xffffffff
+                    #     HI_REG = (alu_entry[1] >> 32) & 0xffffffff
             
             #Branch Target
             branch_target = (ID_EX[0][2])
             # print(inst_assembly[2], alu_result)
             pc_mux1 = 0
             if Branch[0]:
+                # print(alu_result)
+                # print(alu_src1, alu_src2)
+                # print(inst_assembly[2])
                 Zero = 1 if (alu_result == 0) else 0
                 greaterThanZero = 1 if(alu_result >0) else 0 ;
                 # ---- Next PC Calculation ----
@@ -530,6 +577,9 @@ while PC in range(inst_mem_len * 4):
             #Latch results of that stage into its pipeline reg
             EX_MEM[1] = [alu_result, readData2]
             # print("/E\ Executed = "+ str(inst_assembly[2]))
+            # print(regs[2][1], regs[3][1], regs[5][1])
+            # print(alu_result)
+            # print(alu_src1, alu_src2)
             # print("EX/MEM -----  for current MEM= ",EX_MEM[0], " result of current execute = ", EX_MEM[1])
             # print("stall Detected= " + str(stallDetected))
             # print("Zero = " + str(Zero) +  " greaterThanZero = " + str(greaterThanZero)+ "  Next_PC = " + str(PC) +"  Branch = "+str(Branch[0]))
@@ -663,15 +713,28 @@ while PC in range(inst_mem_len * 4):
         inst_assembly[1] = "NOP $zero,$zer0,%zero"
 
 # -- End of Main Loop
+frequency = 2*10**9
+cycle_time = 1/frequency
 cache_miss_ratio = 0.05
 dram_latency = 33
-real_clock_count = clock + mem_accesses * (cache_latency + cache_miss_ratio * dram_latency)
+miss_penalty = dram_latency + 1
+mem_time = (cache_latency + cache_miss_ratio * miss_penalty)
+real_clock_count = clock + mem_accesses * mem_time
+seconds = real_clock_count * cycle_time
+watts = power_sum/(10**9)
 print("""##########################
 REAL CLOCK COUNT: """, real_clock_count)
 print('TOTAL INSTRUCTIONS: ', inst_executed)
 print('TOTAL MEMORY ACCESSES', mem_accesses)
 print("""EXPECTED CPI: """, clock/inst_executed)
 print("""REAL CPI: """, real_clock_count/inst_executed)
+print("TIME: ", seconds)
 print("############################\n\n")
+print("############################")
+print("POWER COMSUMED = " + str(watts) + ' W')
+print("ENERGY: " + str(watts * seconds) + ' J')
+print("EDP: ", watts * seconds ** 2)
+print("############################\n\n")
+
 # display_mem()
 # display_regs()

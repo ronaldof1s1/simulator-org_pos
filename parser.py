@@ -1,16 +1,16 @@
 from sys import argv
 
-Rtype = ['and', 'or', 'add', 'sll', 'slr', 'nor', 'sub', 
-        'mult', 'mul', 'slt', 'mflo', 'rlw', 'rsw']
+Rtype = ['and', 'or', 'add', 'sll', 'srl', 'nor', 'sub', 
+        'mult', 'mul', 'slt', 'mflo', 'rlw', 'rsw', 'not']
 
 Vectorized_mem_acc = ['vrlw', 'vrsw']
 
-VRtype =['vadd', 'vmul']
+VRtype =['vadd', 'vmul', 'vnot', 'vand', 'vor']
 
 Itype = ['sw', 'lw', 'beq', 'addi', 'bne']
 
-funct_to_numb = {'and' : 0b100100, 'or' : 0b100101, 'add' : 0b100000, 'sll': 0b000000, 'slr': 0b000001, 'sub' : 0b100010,
-         'slt' : 0b101010, 'nor' : 0b011011, 'mult' : 0b011001, 'mflo' : 0b010010, 'mul' : 0b011001}
+funct_to_numb = {'and' : 0b100100, 'or' : 0b100101, 'add' : 0b100000, 'sll': 0b000000, 'srl': 0b000001, 'sub' : 0b100010,
+         'slt' : 0b101010, 'nor' : 0b011011, 'mult' : 0b011001, 'mflo' : 0b010010, 'mul' : 0b011001, 'not' : 0b000010}
 
 vec_reg_to_num = {'xmm': 29, 'ymm': 30, 'rmm': 31}
 
@@ -22,7 +22,7 @@ class parser:
     def parse_instruction(self,words):
         op = words[0]
 
-
+        # print(op)
         if op == 'nop':
             return'{:032b}'.format(0)
         # print(op)
@@ -49,6 +49,8 @@ class parser:
             opcode = 0b000110
         elif op in VRtype:
             opcode = 0b000111
+        elif op == 'get':
+            opcode = 0b001010
         else:
             raise Exception
 
@@ -77,11 +79,11 @@ class parser:
             else:
                 shamt = "{:05b}".format(0)
             
-            if op != 'mult':
+            if op != 'mult' and op != 'not':
                 rt = ''.join(s for s in words[3] if s.isdigit())
                 rt = "{:05b}".format(int(rt))
             else:
-                rt = shamt
+                rt = "{:05b}".format(0)
 
 
             if op in funct_to_numb:
@@ -110,7 +112,7 @@ class parser:
             rs = "{:05b}".format(int(rs))
 
             bin_word = bin(int(words[3]))
-            imm = '{:016b}'.format(int(bin_word,2) & 0xffff, 'b')
+            imm = '{:016b}'.format(int(bin_word,2) & 0xffff)
             # print(imm + 'imm')
 
             instruction = opcode + rs + rd + imm
@@ -159,7 +161,11 @@ class parser:
             rs = vec_reg_to_num[words[2]]
             rs = "{:05b}".format(int(rs))
 
-            rt = vec_reg_to_num[words[3]]
+            if op == 'vnot':
+                rt = 31
+            else:
+                rt = vec_reg_to_num[words[3]]
+            
             rt = "{:05b}".format(int(rt))
 
             shamt = 0
@@ -170,6 +176,25 @@ class parser:
 
             instruction = opcode + rs + rt + rd + shamt + funct
 
+
+        if op == 'get':
+            rd = ''.join(s for s in words[1] if s.isdigit())
+            rd = '{:05b}'.format(int(rd))
+
+            rs = rs = vec_reg_to_num[words[2]]
+            rs = "{:05b}".format(int(rs))
+
+            rt = ''.join(s for s in words[3] if s.isdigit())
+            rt = "{:05b}".format(int(rt))
+
+            shamt = 0
+            shamt = "{:05b}".format(shamt)
+
+            funct = 2
+            funct = "{:06b}".format(funct)
+
+            instruction = opcode + rs + rt + rd + shamt + funct
+            
 
         return instruction
 

@@ -1,11 +1,10 @@
 from random import randint
 
-Memsize = 8 * 1024
+Memsize = 1024**2
 
 Mem = []
 
-def dfs():
-    G_size = 10
+def dfs(G_size):
     #for graph
     for i in range(G_size):
         for j in range(G_size):
@@ -27,8 +26,8 @@ def dfs():
 
     return Mem
 
-def mxm():
-    M = 10
+def mxm(M_size):
+    M = M_size
     N = M
     P = M
 
@@ -49,14 +48,24 @@ def mxm():
 
     return Mem
     
-def bs():
-    N = 10
+def mult_bs(v_size):
+    N = v_size
     for i in range(N*N):
         Mem.append(i)
 
     for i in range(N):
-        Mem.append(randint(0,N))
+        Mem.append(N+1)
 
+    
+    for i in range(len(Mem), Memsize):
+        Mem.append(0)
+
+    return Mem
+
+def bs(v_size):
+    N = v_size
+    for i in range(N):
+        Mem.append(i)
     
     for i in range(len(Mem), Memsize):
         Mem.append(0)
