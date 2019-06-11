@@ -381,6 +381,13 @@ while PC in range(inst_mem_len * 4):
     
         #power usage:
         dynamic_energy = dynamic_power_usage[my_op[1]]
+        if (my_funct[1] == 0b011001):
+            mult_power = dynamic_power['mult']
+            if(my_op[1] == 0b000000):
+                dynamic_energy += mult_power
+            else:
+                dynamic_energy += 8*mult_power
+            
         inst_power = dynamic_energy + leak_sum
         power_sum += inst_power
         if inst_assembly[3] not in power_array:
@@ -722,6 +729,7 @@ mem_time = (cache_latency + cache_miss_ratio * miss_penalty)
 real_clock_count = clock + mem_accesses * mem_time
 seconds = real_clock_count * cycle_time
 watts = power_sum/(10**9)
+most_powered_instruction = max(power_array.values())
 print("""##########################
 REAL CLOCK COUNT: """, real_clock_count)
 print('TOTAL INSTRUCTIONS: ', inst_executed)
@@ -732,6 +740,7 @@ print("TIME: ", seconds)
 print("############################\n\n")
 print("############################")
 print("POWER COMSUMED = " + str(watts) + ' W')
+print("MOST POWERED INSTRUCTION: ", most_powered_instruction)
 print("ENERGY: " + str(watts * seconds) + ' J')
 print("EDP: ", watts * seconds ** 2)
 print("############################\n\n")
