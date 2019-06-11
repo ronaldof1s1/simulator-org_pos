@@ -12,7 +12,7 @@ Itype = ['sw', 'lw', 'beq', 'addi', 'bne']
 funct_to_numb = {'and' : 0b100100, 'or' : 0b100101, 'add' : 0b100000, 'sll': 0b000000, 'slr': 0b000001, 'sub' : 0b100010,
          'slt' : 0b101010, 'nor' : 0b011011, 'mult' : 0b011001, 'mflo' : 0b010010, 'mul' : 0b011001}
 
-vec_reg_to_num = {'xmm': 0, 'ymm': 1, 'rmm': 2}
+vec_reg_to_num = {'xmm': 29, 'ymm': 30, 'rmm': 31}
 
 class parser:
 
@@ -166,7 +166,7 @@ class parser:
             shamt = "{:05b}".format(shamt)
 
             funct = funct_to_numb[op[1:]]
-            funct = "{:05b}".format(funct)
+            funct = "{:06b}".format(funct)
 
             instruction = opcode + rs + rt + rd + shamt + funct
 

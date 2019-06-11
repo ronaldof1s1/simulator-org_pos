@@ -35,14 +35,15 @@ regs = [[0,0,"$zero","constant zero"],
         [26,0,"$k0","reserved for OS kernel"],
         [27,0,"$k1","reserved for OS kernel"],
         [28,0,"$gp","global pointer"],
-        [29,0,"$sp","stack pointer"],
-        [30,0,"$fp","frame pointer"],
-        [31,0,"$ra","return address"] ]
+        [29,[0,0,0,0,0,0,0,0], "xmm","vector 1"],
+        [30,[0,0,0,0,0,0,0,0], "ymm", "vector 2"],
+        [31,[0,0,0,0,0,0,0,0], "rmm"," vector 3"],
+        ]
 
-vec_regs = [[0,[0,0,0,0,0,0,0,0], "xmm"],
-            [1,[0,0,0,0,0,0,0,0], "ymm"],
-            [2,[0,0,0,0,0,0,0,0], "rmm"],
-            ]
+# vec_regs = [[29,[0,0,0,0,0,0,0,0], "xmm"],
+#             [30,[0,0,0,0,0,0,0,0], "ymm"],
+#             [31,[0,0,0,0,0,0,0,0], "rmm"],
+#             ]
 
 LO_REG = 0
 HI_REG = 0
@@ -78,15 +79,13 @@ inst_assembly = [0, 0, 0, 0, 0]
 def display_regs():
     x = [x*2 for x in range(16)]
     for i in x:
-        print(regs[i][2] + "=", "%#010x"% (regs[i][1])+'    '+regs[i+1][2] + "=", "%#010x"% (regs[i+1][1]))
+        print(regs[i][2] + "=", "{}".format(regs[i][1])+'    '+regs[i+1][2] + "=", "{}".format(regs[i+1][1]))
     print("LO_REG = " + str(LO_REG) + '    ' + "HI_REG = " + str(HI_REG))
-    for reg in vec_regs:
-        print(reg[2] + "=" + str(reg[1]))
     return
 def display_mem():
     print("data Memory")
     for i in range(len(data_mem)):
-        print("location %d"% i + " = " + str(data_mem[i]))    
+        print("location {}".format(i) + " = " + str(data_mem[i]))    
     
 
 # ---- CONTROL FIELDS ----
@@ -105,9 +104,9 @@ control = { 0b000000 : [1,0,0,1,0,0,0,2,0,0],     #R Format
             0b100011 : [0,1,1,1,1,0,0,0,0,0],     #lw
             0b101011 : [0,1,0,0,0,1,0,0,0,0],     #sw
             0b000100 : [0,0,0,0,0,0,1,1,0,0],     #beq
-            0b001101 : [0,1,0,1,0,0,0,3,0,0],     #ori
+            # 0b001101 : [0,1,0,1,0,0,0,3,0,0],     #ori
             0b001000 : [0,1,0,1,0,0,0,3,0,0],     #addi
-            0b000001 : [0,0,0,0,0,0,1,1,0,0],     #bgez
+            # 0b000001 : [0,0,0,0,0,0,1,1,0,0],     #bgez
             0b000010 : [1,0,1,1,1,0,0,2,0,0],     #rlw
             0b000011 : [1,0,0,0,0,1,0,2,0,0],     #rsw
             # 0b000101 : [1,0,0,1,0,0,0,2,1],     #mac
@@ -169,7 +168,7 @@ def ALU_control(ALUOp, funct,opcode):
 
 inst_mem = []
 
-data_mem = memory_init.mxm() # matA= [1,2],[3,4] matX=[4,5], matB=[0,0]
+data_mem = memory_init.dfs() # matA= [1,2],[3,4] matX=[4,5], matB=[0,0]
 # print(data_mem)
 
 # file = open("../outputs/out.out", 'w+')
@@ -243,7 +242,7 @@ def flush_pipe():
 clock = 0 # a variable holding clock counts
 inst_executed = 0
 mem_accesses = 0 # a variable holding mem access counts
-mem_latency = 2
+cache_latency = 2
 multiplier_latency = 3
 multiplications = 0
 
@@ -279,7 +278,7 @@ while PC in range(inst_mem_len * 4):
         
     # print('----------------------------------------------------')
     # print('/F\ Fetched = ' + str(inst_assembly[4])+    '  ------Clock cycle = '+ str(clock))
-    # print('IF/ID ----- To decode = '+ "%#010x"%(IF_ID[0])+'  fetched = '+ "%#010x" %(IF_ID[1]))
+    # print('IF/ID ----- To decode = '+ "%#010x"%(IF_ID[0])+'  fetched = '+ "%#010x".format(IF_ID[1]))
    
         
 ################################### DECODE STAGE ######################################
@@ -291,18 +290,29 @@ while PC in range(inst_mem_len * 4):
 
             register_write_data = MEM_WB[0][0] if MemtoReg[0] else MEM_WB[0][1]
             write_register = my_rd[0] if RegDst[0] else my_rt[0]
-
             if VectorizeDest[0]:
+                # print("wb vec")
+                # print(write_register)
+                # print(vec_regs[write_register])
+                # print(register_write_data)
+                # print(inst_assembly[0])
                 if(RegWrite[0]):
                     # print(my_rd, my_rt, my_rs)
                     # print(register_write_data)
                     # print(write_register)
-                    vec_regs[write_register][1] = register_write_data
+                    # write_register -= 29
+                    regs[write_register][1] = register_write_data
             else:
-
+                # print("wb norm")
+                # print(write_register)
+                # print(regs[write_register])
+                # print(register_write_data)
+                # print(inst_assembly[0])
+                
                 if (RegWrite[0] and (write_register!= 0)): # do not write to reg zero. FOR MULTU
                     regs[write_register][1] = register_write_data
             
+            # print("/W\ WriteBack = "+str(inst_assembly[0]))
             
         #decode instruction
         my_op[1] = IF_ID[0] >> 26
@@ -331,16 +341,10 @@ while PC in range(inst_mem_len * 4):
         read_register1 = my_rs[3]
         read_register2 = my_rt[3]
         read_register3 = my_ra[1]
-  
-        if VectorizeSource[1]:
-            read_data1 = vec_regs[read_register1][1]
-            read_data2 = vec_regs[read_register2][1]
-            read_data3 = vec_regs[read_register3][1]
-        else:            
-            read_data1 = regs[read_register1][1] 
-            read_data2 = regs[read_register2][1]
-            read_data3 = regs[read_register3][1]
-      
+        read_data1 = regs[read_register1][1] 
+        read_data2 = regs[read_register2][1]
+        read_data3 = regs[read_register3][1]
+    
      
                                 
         #sign extension of immediate data
@@ -351,11 +355,12 @@ while PC in range(inst_mem_len * 4):
         #Latch results of that stage into its pipeline reg
         ID_EX[1] = [read_data1, read_data2, sign_ext, read_data3]
         # print('/D\ Decoded = ' + str(inst_assembly[3]))
-        # print("ID/EX -----  for current execute= [%d, %d, %d]" %((ID_EX[0][0]),(ID_EX[0][1]),(ID_EX[0][2]))," result of current decode =[%d, %d, %d]" %((ID_EX[1][0]),(ID_EX[1][1]),(ID_EX[1][2])))
-        # print("RD = [%d, %d, %d, %d]" %((my_rd[0]) ,(my_rd[1]), (my_rd[2]) ,(my_rd[3])))
-        # print("RS =  [%d, %d, %d, %d]" %((my_rs[0]) ,(my_rs[1]), (my_rs[2]) ,(my_rs[3])))
-        # print("RT =  [%d, %d, %d, %d]" %((my_rt[0]) ,(my_rt[1]), (my_rt[2]) ,(my_rt[3])))
-        # print("RA =  [%d, %d]" %((my_ra[0]) ,(my_ra[1])))
+        # print("ID/EX -----  for current execute= [{}, {}, {}]".format((ID_EX[0][0]),(ID_EX[0][1]),(ID_EX[0][2]))," result of current decode =[{},{},{}]".format((ID_EX[1][0]),(ID_EX[1][1]),(ID_EX[1][2])))
+        # print('vecdest' + str(VectorizeDest))
+        # print("RD = [{}, {}, {}, {}]".format((my_rd[0]) ,(my_rd[1]), (my_rd[2]) ,(my_rd[3])))
+        # print("RS =  [{}, {}, {}, {}]".format((my_rs[0]) ,(my_rs[1]), (my_rs[2]) ,(my_rs[3])))
+        # print("RT =  [{}, {}, {}, {}]".format((my_rt[0]) ,(my_rt[1]), (my_rt[2]) ,(my_rt[3])))
+        # print("RA =  [{}, {}]".format((my_ra[0]) ,(my_ra[1])))
         
         # print("MemRead=      ", MemRead)
         # print("MemWrite = ", MemWrite)
@@ -372,11 +377,14 @@ while PC in range(inst_mem_len * 4):
         # mult_result = mult_src1 * mult_src2
 
         # alu_src1 = mult_result
-        
         alu_src1 = ID_EX[0][0]
 
         alu_src2 = ID_EX[0][2] if ALUSrc[0] else ID_EX[0][1]  # if ALUsrc_current = 1 then sign Extend is alu_src2 else read_data2
         readData2= ID_EX[0][1]
+        # print(VectorizeSource)
+        # if VectorizeSource[0]:
+        #     alu_src1 = vec_read_data1
+        #     alu_src2 = vec_read_data2    
         ############## H     A     Z     A     R     D DETECTION BETWEEN WB AND EX STAGE ############################
         # hazard is present if RD of WB stage (RD[0]) == Ex stage's Rs[2] or RT[2]                                  #
         # hazard is present if RD of MEM stage (RD[1]) == Ex stage's RS[2] or RT[2]                                 #
@@ -390,11 +398,11 @@ while PC in range(inst_mem_len * 4):
                     WB_hazard_RD_check = my_rd[0] if RegDst[0] else my_rt[0]                                        #
                     if (WB_hazard_RD_check == my_rs[2]): # with RS
                         if((ALUOp[0] == 3)): # if I instruction
-                            # print("--------------------------RS forwaded from WB stage. RS = %d" %(MEM_WB[0][1]))          #
+                            # print("--------------------------RS forwaded from WB stage. RS = {}".format(MEM_WB[0][1]))          #
                             alu_src1_rs = MEM_WB[0][1]  # load into alu_src1 the value of ALU result                        #
                             hazardDetected_rs = 1
                         else:
-                            # print("--------------------------RS forwaded from WB stage. RS = %d" %(MEM_WB[0][0]))       #
+                            # print("--------------------------RS forwaded from WB stage. RS = {}".format(MEM_WB[0][0]))       #
                             alu_src1_rs = MEM_WB[0][0]  # load into alu_src1 the value of the loaded data from memory   #
                             hazardDetected_rs = 1
                             
@@ -402,18 +410,19 @@ while PC in range(inst_mem_len * 4):
                         if((ALUOp[0] == 3)): # if I instruction
                             alu_src2 = alu_src2
                         else:
-                            # print("--------------------------RT forwaded from WB stage. RT = %d" %(MEM_WB[0][0]))       #
+                            # print("--------------------------RT forwaded from WB stage. RT = {}".format(MEM_WB[0][0]))       #
                             alu_src2_rt = MEM_WB[0][0]                                                                  #
                             hazardDetected_rt = 1
                             
                     MEM_hazard_RD_check = my_rd[1] if RegDst[1] else my_rt[1]                                           #
                     if (MEM_hazard_RD_check == my_rs[2]): # with RS
-                            # print("--------------------------RS forwaded from MEM stage. RS = %d" %(EX_MEM[0][0]))          #
+                            # print("--------------------------RS forwaded from MEM stage. RS = {}".format(EX_MEM[0][0]))          #
                             alu_src1_rs = EX_MEM[0][0]  # load into alu_src1 the value of ALU result                        #
                             hazardDetected_rs = 1
                                               
                     if ( (MEM_hazard_RD_check == my_rt[2]) and (ALUSrc[0] == 0)): # with RT AND source is a reg not signext#
-                            # print("--------------------------RT forwaded from MEM stage. RT = %d" %(EX_MEM[0][0]))          #
+                            # print("--------------------------RT forwaded from MEM stage. RT = {}".format(EX_MEM[0][0]))          #
+                            # print(my_rt)
                             alu_src2_rt = EX_MEM[0][0]                                                                      #
                             hazardDetected_rt = 1                                                                           #
                                                                                     #           
@@ -470,7 +479,10 @@ while PC in range(inst_mem_len * 4):
             alu_result = None
 
             if VectorizeSource[0]:
-                
+                # print(VectorizeSource)
+                # print('ex vec')
+                # print(inst_assembly[2])
+                # print(alu_src1, alu_src2)
                 alu_entries = []
                 for i in range(len(alu_src1)):
                     result = ALU[alu_operation](alu_src1[i], alu_src2[i])
@@ -479,8 +491,11 @@ while PC in range(inst_mem_len * 4):
                 alu_result = alu_entries
 
             else:
-                print(inst_assembly[2])
-                print(alu_src1, alu_src2)
+                # print('ex norm')
+                # print(inst_assembly[2])
+                # print(alu_src1, alu_src2)
+                # display_mem()
+                # display_regs()
                 alu_entry = ALU[alu_operation](alu_src1,alu_src2)
                 # multiplication_to_LO = ((ALUOp[0]==2) and (my_funct[0]==0b011001)) # check if there is a multu inst
                 # alu_result = 0 if multiplication_to_LO else alu_entry[1]
@@ -492,12 +507,13 @@ while PC in range(inst_mem_len * 4):
             #Branch Target
             branch_target = (ID_EX[0][2])
             # print(inst_assembly[2], alu_result)
+            pc_mux1 = 0
             if Branch[0]:
                 Zero = 1 if (alu_result == 0) else 0
                 greaterThanZero = 1 if(alu_result >0) else 0 ;
                 # ---- Next PC Calculation ----
                 #pc_mux1
-                pc_mux1 = BranchAddress[my_op[0]](Zero, greaterThanZero) if Branch[0] ==1 else PC_plus_4
+                pc_mux1 = BranchAddress[my_op[0]](Zero, greaterThanZero)
                 if pc_mux1 != PC_plus_4: # i.e branch Taken
                     # print("Branch Taken")
                     update_branch_predictor(PC, True)
@@ -526,7 +542,8 @@ while PC in range(inst_mem_len * 4):
             # print(inst_assembly)
             mem_accesses += 1
             if VectorizeDest[1]:
-                data_to_w = vec_regs[my_rd[1]][1]
+                # print(my_rd)
+                data_to_w = regs[my_rd[1]][1]
                 # print(data_to_w)
                 i = 0
                 for data in data_to_w:
@@ -567,7 +584,8 @@ while PC in range(inst_mem_len * 4):
 ################################## Write Back STAGE ######################################
 
     # if (clock >= 5):
-        # print("/W\ WriteBack = "+str(inst_assembly[0]))
+    #     print("/W\ WriteBack = "+str(inst_assembly[0]))
+        # print(VectorizeDest)
         # display_regs()
         # display_mem()
         
@@ -589,6 +607,7 @@ while PC in range(inst_mem_len * 4):
     MemWrite[0] = MemWrite[1]
     MemWrite[1] = MemWrite[2]
     MemRead[0] = MemRead[1]
+
   #update WB control lists
     MemtoReg[0] = MemtoReg[1]
     MemtoReg[1] = MemtoReg[2]
@@ -639,16 +658,20 @@ while PC in range(inst_mem_len * 4):
         RegWrite[1]= 0
         MemRead[0] = 0
         MemWrite[1]= 0
+        # VectorizeSource[1] = 0
+        VectorizeDest[1] = 0
         inst_assembly[1] = "NOP $zero,$zer0,%zero"
 
 # -- End of Main Loop
-
-real_clock_count = clock + mem_accesses * mem_latency
+cache_miss_ratio = 0.05
+dram_latency = 33
+real_clock_count = clock + mem_accesses * (cache_latency + cache_miss_ratio * dram_latency)
 print("""##########################
 REAL CLOCK COUNT: """, real_clock_count)
 print('TOTAL INSTRUCTIONS: ', inst_executed)
+print('TOTAL MEMORY ACCESSES', mem_accesses)
 print("""EXPECTED CPI: """, clock/inst_executed)
 print("""REAL CPI: """, real_clock_count/inst_executed)
 print("############################\n\n")
-display_mem()
-display_regs()
+# display_mem()
+# display_regs()
